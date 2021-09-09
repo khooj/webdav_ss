@@ -5,10 +5,6 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
   };
 
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
@@ -28,8 +24,17 @@
         ];
         pkgs = import nixpkgs { inherit system overlays; };
         lib = pkgs.lib;
+        litmus = pkgs.stdenv.mkDerivation rec {
+          pname = "litmus";
+          version = "0.13";
+          src = pkgs.fetchurl {
+            url = "http://webdav.org/neon/litmus/litmus-${version}.tar.gz";
+            sha256 = "sha256-CdYVlYEhcGRE22fgnEDfX3U8zx+hSEb960OSmKqaw/8=";
+          };
+        };
 
         buildInputs = with pkgs; [
+          litmus
           sccache
           pkg-config
           gnumake
