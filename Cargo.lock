@@ -23,6 +23,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28ae2b3dec75a406790005a200b1bd89785afc02517a00ca99ecfe093ee9e6cf"
+
+[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1117,6 +1123,8 @@ dependencies = [
 name = "webdav_ss"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "futures-util",
  "hyper",
  "tokio",
  "webdav-handler",
