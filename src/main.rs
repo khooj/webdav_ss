@@ -1,15 +1,17 @@
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use std::convert::Infallible;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use webdav_handler::fakels::FakeLs;
-use webdav_handler::localfs::LocalFs;
+use std::ffi::OsString;
+use std::str::FromStr;
 use webdav_handler::memfs::MemFs;
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 
 mod aggregate;
 mod repository;
+
+use aggregate::AggregateBuilder;
+use repository::MemoryRepository;
 
 async fn hello_world(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
     Ok(Response::new("Hello".into()))
@@ -18,9 +20,11 @@ async fn hello_world(_req: Request<Body>) -> Result<Response<Body>, Infallible> 
 #[tokio::main]
 async fn main() {
     let addr = ([127, 0, 0, 1], 3000).into();
-    let dir = "/tmp";
+    let fs = AggregateBuilder::new(Box::new(MemoryRepository::new()))
+        .add_route(("/fs1", MemFs::new())).unwrap()
+        .add_route(("/fs2", MemFs::new())).unwrap();
     let dav_server = DavHandler::builder()
-        .filesystem(MemFs::new())
+        .filesystem(fs.build())
         .locksystem(MemLs::new())
         .build_handler();
 

@@ -1126,6 +1126,7 @@ dependencies = [
  "anyhow",
  "futures-util",
  "hyper",
+ "percent-encoding 2.1.0",
  "tokio",
  "webdav-handler",
 ]
