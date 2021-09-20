@@ -1,7 +1,7 @@
 use super::repository::Repository;
 use anyhow::{anyhow, Result};
 use futures_util::{future, FutureExt};
-use percent_encoding::percent_encode_byte;
+use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::{
     collections::HashMap,
     ffi::OsString,
@@ -17,7 +17,11 @@ use webdav_handler::{
     },
 };
 
-type Routes = HashMap<OsString, Box<dyn DavFileSystem>>;
+type Routes = HashMap<String, Box<dyn DavFileSystem>>;
+
+const ENC: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'.')
+    .remove(b'/');
 
 #[derive(Clone)]
 pub struct Aggregate {
@@ -33,12 +37,10 @@ impl Aggregate {
         }
     }
 
-    pub fn add_route(&mut self, (route, fs): (OsString, Box<dyn DavFileSystem>)) -> Result<()> {
+    pub fn add_route(&mut self, (route, fs): (&str, Box<dyn DavFileSystem>)) -> Result<()> {
+        let route = route.into();
         if self.filesystems.contains_key(&route) {
-            return Err(anyhow!(
-                "aggregate already contains this route: {}",
-                route.to_string_lossy()
-            ));
+            return Err(anyhow!("aggregate already contains this route: {}", route,));
         }
 
         self.filesystems.entry(route).or_insert(fs);
@@ -48,20 +50,19 @@ impl Aggregate {
     fn find_route(&self, route: &DavPath) -> FsResult<(Box<dyn DavFileSystem>, DavPath)> {
         let pb = route.as_pathbuf();
         for p in pb.ancestors() {
-            if self.filesystems.contains_key(p.as_os_str()) {
-                let path = match pb.strip_prefix(p) {
+            let p = p.to_str().ok_or(FsError::NotFound)?.to_owned();
+            if self.filesystems.contains_key(&p) {
+                let path = match pb.strip_prefix(p.clone()) {
                     Err(_) => return Err(FsError::NotFound),
-                    Ok(k) => Path::new("/").join(k),
+                    Ok(k) => k,
                 };
-                let path = path
-                    .to_str()
-                    .unwrap()
-                    .bytes()
-                    .map(percent_encode_byte)
-                    .collect::<String>();
+                let path = format!(
+                    "/{}",
+                    percent_encode(path.to_str().unwrap().as_bytes(), ENC).to_owned()
+                );
                 println!("orig: {}, result path: {}", route, path);
                 return Ok((
-                    self.filesystems.get(p.as_os_str()).unwrap().clone(),
+                    self.filesystems.get(&p).unwrap().clone(),
                     DavPath::new(&path).unwrap(),
                 ));
             }
@@ -203,7 +204,7 @@ impl AggregateBuilder {
         mut self,
         (route, fs): (&str, Box<dyn DavFileSystem>),
     ) -> Result<AggregateBuilder> {
-        self.agg.add_route((OsString::from_str(route)?, fs))?;
+        self.agg.add_route((route, fs))?;
         Ok(self)
     }
 
@@ -217,7 +218,7 @@ mod tests {
     use crate::repository::MemoryRepository;
     use hyper::Uri;
     use std::str::FromStr;
-    use webdav_handler::memfs::MemFs;
+    use webdav_handler::{davpath::DavPath, memfs::MemFs};
 
     use super::*;
 
@@ -225,16 +226,15 @@ mod tests {
         // let ss =
         //     percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC)
         //         .to_string();
-        let ss = s.parse::<Uri>().unwrap();
-        println!("{}", ss);
+        // let ss = s.parse::<Uri>().unwrap();
         DavPath::new(&s).unwrap()
     }
 
     #[test]
     fn check_find_route() -> Result<()> {
         let mut fs = Aggregate::new(Box::new(MemoryRepository::new()));
-        fs.add_route((OsString::from_str("/tmp/fs/fs1").unwrap(), MemFs::new()))?;
-        fs.add_route((OsString::from_str("/tmp/fs1").unwrap(), MemFs::new()))?;
+        fs.add_route(("/tmp/fs/fs1", MemFs::new()))?;
+        fs.add_route(("/tmp/fs1", MemFs::new()))?;
 
         let (_, f) = fs.find_route(&helper_path("/tmp/fs/fs1"))?;
         assert_eq!(f, helper_path("/"));
@@ -248,6 +248,12 @@ mod tests {
         // /res-€
         let (_, f) = fs.find_route(&helper_path("/tmp/fs1/res-%e2%82%ac"))?;
         assert_eq!(f, helper_path("/res-%e2%82%ac"));
+
+        let (_, f) = fs.find_route(&helper_path("/tmp/fs1/one/two"))?;
+        assert_eq!(f, helper_path("/one/two"));
+
+        let (_, f) = fs.find_route(&helper_path("/tmp/fs1/one/two.txt"))?;
+        assert_eq!(f, helper_path("/one/two.txt"));
 
         assert!(fs.find_route(&helper_path("/not_exist")).is_err());
         Ok(())
