@@ -4,11 +4,9 @@ use futures_util::{future, FutureExt};
 use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::{
     collections::HashMap,
-    ffi::OsString,
-    path::{Path, PathBuf},
-    str::FromStr,
     sync::{Arc, Mutex},
 };
+use tracing::instrument;
 use webdav_handler::{
     davpath::DavPath,
     fs::{
@@ -19,9 +17,7 @@ use webdav_handler::{
 
 type Routes = HashMap<String, Box<dyn DavFileSystem>>;
 
-const ENC: &AsciiSet = &NON_ALPHANUMERIC
-    .remove(b'.')
-    .remove(b'/');
+const ENC: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.').remove(b'/');
 
 #[derive(Clone)]
 pub struct Aggregate {
@@ -37,6 +33,7 @@ impl Aggregate {
         }
     }
 
+    #[instrument(level = "debug", err, skip(self, fs))]
     pub fn add_route(&mut self, (route, fs): (&str, Box<dyn DavFileSystem>)) -> Result<()> {
         let route = route.into();
         if self.filesystems.contains_key(&route) {
@@ -60,7 +57,6 @@ impl Aggregate {
                     "/{}",
                     percent_encode(path.to_str().unwrap().as_bytes(), ENC).to_owned()
                 );
-                println!("orig: {}, result path: {}", route, path);
                 return Ok((
                     self.filesystems.get(&p).unwrap().clone(),
                     DavPath::new(&path).unwrap(),
@@ -72,17 +68,16 @@ impl Aggregate {
 }
 
 impl DavFileSystem for Aggregate {
+    #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
-            // if let Err(e) = self.repository.save_file(path, &options) {
-            //     return Err(FsError::NotImplemented);
-            // }
             let (route, path) = self.find_route(&path)?;
             Ok(route.open(&path, options).await?)
         }
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn read_dir<'a>(
         &'a self,
         path: &'a DavPath,
@@ -95,6 +90,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
             let (route, path) = self.find_route(&path)?;
@@ -103,6 +99,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
@@ -111,6 +108,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
@@ -119,6 +117,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
@@ -127,6 +126,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, from) = self.find_route(&from)?;
@@ -136,6 +136,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, from) = self.find_route(&from)?;
@@ -145,6 +146,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn have_props<'a>(
         &'a self,
         path: &'a DavPath,
@@ -152,6 +154,7 @@ impl DavFileSystem for Aggregate {
         future::ready(true).boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn patch_props<'a>(
         &'a self,
         path: &'a DavPath,
@@ -164,6 +167,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn get_prop<'a>(
         &'a self,
         path: &'a DavPath,
@@ -176,6 +180,7 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn get_props<'a>(
         &'a self,
         path: &'a DavPath,
@@ -216,17 +221,11 @@ impl AggregateBuilder {
 #[cfg(test)]
 mod tests {
     use crate::repository::MemoryRepository;
-    use hyper::Uri;
-    use std::str::FromStr;
     use webdav_handler::{davpath::DavPath, memfs::MemFs};
 
     use super::*;
 
     fn helper_path(s: &'static str) -> DavPath {
-        // let ss =
-        //     percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC)
-        //         .to_string();
-        // let ss = s.parse::<Uri>().unwrap();
         DavPath::new(&s).unwrap()
     }
 
