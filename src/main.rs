@@ -9,6 +9,7 @@ use webdav_handler::DavHandler;
 
 mod aggregate;
 mod repository;
+mod backend;
 
 use aggregate::AggregateBuilder;
 use repository::MemoryRepository;
