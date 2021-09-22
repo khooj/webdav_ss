@@ -1,8 +1,9 @@
-use anyhow::Result;
-use s3::bucket::Bucket;
+use anyhow::{anyhow, Result};
+use hyper::StatusCode;
 use s3::creds::Credentials;
 use s3::region::Region;
-use s3::S3Error;
+use s3::{bucket::Bucket, serde_types::HeadObjectResult};
+use std::{collections::HashMap, time::SystemTime};
 use tracing::instrument;
 use webdav_handler::{
     davpath::DavPath,
@@ -35,11 +36,117 @@ impl S3 {
     }
 }
 
+struct S3OpenFile {
+    is_new: bool,
+    bucket: &Bucket,
+    path: DavPath,
+    options: OpenOptions,
+}
+
+impl DavFile for S3OpenFile {
+    fn metadata<'a>(&'a mut self) -> FsFuture<Box<dyn DavMetaData>> {
+        async move {
+            Ok(S3MetaData {
+                bucket: self.bucket,
+                path: self.path.clone(),
+                len: 0u64,
+            })
+        }
+        .boxed()
+    }
+
+    fn write_buf<'a>(&'a mut self, buf: Box<dyn bytes::Buf + Send>) -> FsFuture<()> {}
+
+    fn write_bytes<'a>(&'a mut self, buf: bytes::Bytes) -> FsFuture<()> {}
+
+    fn read_bytes<'a>(&'a mut self, count: usize) -> FsFuture<bytes::Bytes> {}
+
+    fn seek<'a>(&'a mut self, pos: std::io::SeekFrom) -> FsFuture<u64> {}
+
+    fn flush<'a>(&'a mut self) -> FsFuture<()> {}
+}
+
+struct S3MetaData {
+    bucket: &Bucket,
+    path: DavPath,
+    len: u64,
+}
+
+impl S3MetaData {
+    async fn get_header(&self) -> Result<HeadObjectResult> {
+        let (head, code) = self.bucket.head_object(&self.path.as_url_string()).await?;
+        if code != 200 {
+            return Err(anyhow!("error"));
+        }
+
+        Ok(head)
+    }
+
+    async fn get_metadata(&self) -> Result<HashMap<String, String>> {
+        let head = self.get_header().await?;
+        head.metadata.ok_or(HashMap::new())
+    }
+}
+
+impl DavMetaData for S3MetaData {
+    fn len(&self) -> u64 {
+        self.len
+    }
+
+    fn modified(&self) -> FsResult<SystemTime> {
+        async move {
+            let header = self.get_header().await?;
+            Ok(header
+                .last_modified
+                .map_or(SystemTime::now(), |s| s.parse()?))
+        }
+        .boxed()
+    }
+
+    fn is_dir(&self) -> bool {
+        self.path.is_collection()
+    }
+
+    fn accessed(&self) -> FsResult<SystemTime> {}
+
+    fn created(&self) -> FsResult<SystemTime> {}
+
+    fn status_changed(&self) -> FsResult<SystemTime> {}
+
+    fn executable(&self) -> FsResult<bool> {}
+}
+
 impl DavFileSystem for S3 {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
-            self.bucket.put_object_stream(path, s3_path)
+            let (head_result, code) = self.bucket.head_object(&path.as_url_string()).await?;
+            let mut is_new = false;
+            let mut created = SystemTime::now();
+            match code {
+                404 => {
+                    is_new = true;
+                }
+                403 => return Err(anyhow!("forbidden")),
+                200 => {
+                    created = head_result
+                        .metadata
+                        .as_ref()
+                        .unwrap_or(&HashMap::new())
+                        .get("created")
+                        .map_or(created, |v| v.parse()?);
+                }
+                _ => {
+                    panic!("not possible code")
+                }
+            }
+
+            S3OpenFile {
+                is_new,
+                bucket: &self.bucket,
+                path: path.clone(),
+                options,
+            }
         }
         .boxed()
     }
@@ -165,6 +272,3 @@ fn check_bucket() -> Result<()> {
     let creds = Credentials::from_profile(Some("minio"))?;
     let bucket = Bucket::new("test", "eu-central-1".parse()?, creds)?;
 }
-
-#[cfg(test)]
-mod tests {}
