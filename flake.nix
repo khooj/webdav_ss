@@ -17,13 +17,14 @@
           (self: super: rec {
             rustc = self.rust-bin.stable.${rust-version}.default.override {
               extensions =
-                [ "rust-src" "rustfmt-preview" "llvm-tools-preview" ];
+                [ "rust-src" "rust-std" "rustfmt-preview" "llvm-tools-preview" ];
             };
             cargo = rustc;
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; };
         lib = pkgs.lib;
+        pkg = import ./Cargo.nix { inherit pkgs; };
         litmus = pkgs.stdenv.mkDerivation rec {
           pname = "litmus";
           version = "0.13";
@@ -46,9 +47,12 @@
           python3
           openssl
           cmake
+          crate2nix
         ];
         nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
       in rec {
+        defaultPackage = pkg.rootCrate.build;
+
         devShell = with pkgs;
           mkShell {
             buildInputs = [ ] ++ buildInputs;
