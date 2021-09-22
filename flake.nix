@@ -53,6 +53,8 @@
       in rec {
         defaultPackage = pkg.rootCrate.build;
 
+        nixosModules.webdav_ss = import ./module.nix { webdav_ss = defaultPackage; };
+
         devShell = with pkgs;
           mkShell {
             buildInputs = [ ] ++ buildInputs;
