@@ -2,16 +2,33 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
-use std::convert::Infallible;
-use webdav_handler::memfs::MemFs;
+use std::{convert::Infallible, net::SocketAddr, path::PathBuf, str::FromStr};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
+use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
+use tracing::debug;
 
 mod aggregate;
+mod configuration;
 mod repository;
 
 use aggregate::AggregateBuilder;
+use configuration::{Configuration, Filesystem, FilesystemType};
 use repository::MemoryRepository;
+
+fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
+    let cwd = std::env::current_dir().unwrap();
+    let mut p = PathBuf::from_str(&fs.path).unwrap();
+    if p.is_absolute() {
+        p = p.strip_prefix("/").unwrap().into();
+    }
+    let p = cwd.join(p);
+    debug!(path = ?p);
+    match typ {
+        FilesystemType::FS => LocalFs::new(p.to_str().unwrap(), false, false, false),
+        FilesystemType::Mem => MemFs::new(),
+    }
+}
 
 fn setup_tracing() {
     use tracing_subscriber::{fmt, prelude::*, registry::Registry, EnvFilter};
@@ -34,12 +51,18 @@ fn setup_tracing() {
 async fn main() {
     setup_tracing();
 
-    let addr = ([127, 0, 0, 1], 3000).into();
-    let fs = AggregateBuilder::new(Box::new(MemoryRepository::new()))
-        .add_route(("/fs1", MemFs::new()))
-        .unwrap()
-        .add_route(("/", MemFs::new()))
-        .unwrap();
+    let config = Configuration::new().expect("can't get configuration");
+
+    let addr = SocketAddr::from_str(&format!("{}:{}", config.app.host, config.app.port))
+        .expect("can't parse host and port");
+    let mut fs = AggregateBuilder::new(Box::new(MemoryRepository::new()));
+
+    for fss in config.filesystems {
+        fs = fs
+            .add_route((&fss.path, get_backend_by_type(fss.typ, &fss)))
+            .unwrap();
+    }
+
     let dav_server = DavHandler::builder()
         .filesystem(fs.build())
         .locksystem(MemLs::new())
