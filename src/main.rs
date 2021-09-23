@@ -1,12 +1,13 @@
+use clap::{App, Arg};
 use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
 use std::{convert::Infallible, net::SocketAddr, path::PathBuf, str::FromStr};
+use tracing::debug;
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
-use tracing::debug;
 
 mod aggregate;
 mod configuration;
@@ -51,7 +52,22 @@ fn setup_tracing() {
 async fn main() {
     setup_tracing();
 
-    let config = Configuration::new().expect("can't get configuration");
+    let matches = App::new("webdav_ss")
+        .version("0.1")
+        .author("Igor Gilmutdinov <bladoff@gmail.com>")
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("FILE")
+                .help("sets custom config file")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let config = matches.value_of("config").unwrap_or("webdav_ss.yml");
+
+    let config = Configuration::new(config).expect("can't get configuration");
 
     let addr = SocketAddr::from_str(&format!("{}:{}", config.app.host, config.app.port))
         .expect("can't parse host and port");

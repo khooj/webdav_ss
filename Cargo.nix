@@ -142,7 +142,27 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
-      "ansi_term" = rec {
+      "ansi_term 0.11.0" = rec {
+        crateName = "ansi_term";
+        version = "0.11.0";
+        edition = "2015";
+        sha256 = "16wpvrghvd0353584i1idnsgm0r3vchg8fyrm0x8ayv1rgvbljgf";
+        authors = [
+          "ogham@bsago.me"
+          "Ryan Scheel (Havvy) <ryan.havvy@gmail.com>"
+          "Josh Triplett <josh@joshtriplett.org>"
+        ];
+        dependencies = [
+          {
+            name = "winapi";
+            packageId = "winapi";
+            target = { target, features }: (target."os" == "windows");
+            features = [ "errhandlingapi" "consoleapi" "processenv" ];
+          }
+        ];
+
+      };
+      "ansi_term 0.12.1" = rec {
         crateName = "ansi_term";
         version = "0.12.1";
         edition = "2015";
@@ -189,6 +209,35 @@ rec {
           "default" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "array-sizes-33-128" ];
+      };
+      "atty" = rec {
+        crateName = "atty";
+        version = "0.2.14";
+        edition = "2015";
+        sha256 = "1s7yslcs6a28c5vz7jwj63lkfgyx8mx99fdirlhi9lbhhzhrpcyr";
+        authors = [
+          "softprops <d.tangren@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "hermit-abi";
+            packageId = "hermit-abi";
+            target = { target, features }: (target."os" == "hermit");
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+            usesDefaultFeatures = false;
+            target = { target, features }: (target."unix" or false);
+          }
+          {
+            name = "winapi";
+            packageId = "winapi";
+            target = { target, features }: (target."windows" or false);
+            features = [ "consoleapi" "processenv" "minwinbase" "minwindef" "winbase" ];
+          }
+        ];
+
       };
       "autocfg" = rec {
         crateName = "autocfg";
@@ -377,6 +426,60 @@ rec {
           "wasmbind" = [ "wasm-bindgen" "js-sys" ];
         };
         resolvedDefaultFeatures = [ "clock" "libc" "std" "winapi" ];
+      };
+      "clap" = rec {
+        crateName = "clap";
+        version = "2.33.3";
+        edition = "2015";
+        sha256 = "00i065a58987k1sbzqmlz721rw521zcg08jmsh40gi3khp3qmr9p";
+        authors = [
+          "Kevin K. <kbknapp@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "ansi_term";
+            packageId = "ansi_term 0.11.0";
+            optional = true;
+            target = { target, features }: (!(target."windows" or false));
+          }
+          {
+            name = "atty";
+            packageId = "atty";
+            optional = true;
+          }
+          {
+            name = "bitflags";
+            packageId = "bitflags";
+          }
+          {
+            name = "strsim";
+            packageId = "strsim";
+            optional = true;
+          }
+          {
+            name = "textwrap";
+            packageId = "textwrap";
+          }
+          {
+            name = "unicode-width";
+            packageId = "unicode-width";
+          }
+          {
+            name = "vec_map";
+            packageId = "vec_map";
+            optional = true;
+          }
+        ];
+        features = {
+          "color" = [ "ansi_term" "atty" ];
+          "default" = [ "suggestions" "color" "vec_map" ];
+          "doc" = [ "yaml" ];
+          "lints" = [ "clippy" ];
+          "suggestions" = [ "strsim" ];
+          "wrap_help" = [ "term_size" "textwrap/term_size" ];
+          "yaml" = [ "yaml-rust" ];
+        };
+        resolvedDefaultFeatures = [ "ansi_term" "atty" "color" "default" "strsim" "suggestions" "vec_map" ];
       };
       "config" = rec {
         crateName = "config";
@@ -2602,6 +2705,16 @@ rec {
         features = {
         };
       };
+      "strsim" = rec {
+        crateName = "strsim";
+        version = "0.8.0";
+        edition = "2015";
+        sha256 = "0sjsm7hrvjdifz661pjxq5w4hf190hx53fra8dfvamacvff139cf";
+        authors = [
+          "Danny Guo <dannyguo91@gmail.com>"
+        ];
+
+      };
       "syn" = rec {
         crateName = "syn";
         version = "1.0.76";
@@ -2634,6 +2747,22 @@ rec {
           "test" = [ "syn-test-suite/all-features" ];
         };
         resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "extra-traits" "full" "parsing" "printing" "proc-macro" "quote" "visit" "visit-mut" ];
+      };
+      "textwrap" = rec {
+        crateName = "textwrap";
+        version = "0.11.0";
+        edition = "2015";
+        sha256 = "0q5hky03ik3y50s9sz25r438bc4nwhqc6dqwynv4wylc807n29nk";
+        authors = [
+          "Martin Geisler <martin@geisler.net>"
+        ];
+        dependencies = [
+          {
+            name = "unicode-width";
+            packageId = "unicode-width";
+          }
+        ];
+
       };
       "thread_local" = rec {
         crateName = "thread_local";
@@ -3136,7 +3265,7 @@ rec {
         dependencies = [
           {
             name = "ansi_term";
-            packageId = "ansi_term";
+            packageId = "ansi_term 0.12.1";
             optional = true;
           }
           {
@@ -3328,6 +3457,20 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
+      "unicode-width" = rec {
+        crateName = "unicode-width";
+        version = "0.1.9";
+        edition = "2015";
+        sha256 = "0wq9wl69wlp6zwlxp660g9p4hm5gk91chwk14dp1gl9bxba45mry";
+        authors = [
+          "kwantam <kwantam@gmail.com>"
+          "Manish Goregaokar <manishsmail@gmail.com>"
+        ];
+        features = {
+          "rustc-dep-of-std" = [ "std" "core" "compiler_builtins" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "unicode-xid" = rec {
         crateName = "unicode-xid";
         version = "0.2.2";
@@ -3398,6 +3541,43 @@ rec {
           "wasm-bindgen" = [ "getrandom" "getrandom/js" ];
         };
         resolvedDefaultFeatures = [ "default" "getrandom" "std" "v4" ];
+      };
+      "vec_map" = rec {
+        crateName = "vec_map";
+        version = "0.8.2";
+        edition = "2015";
+        sha256 = "1481w9g1dw9rxp3l6snkdqihzyrd2f8vispzqmwjwsdyhw8xzggi";
+        authors = [
+          "Alex Crichton <alex@alexcrichton.com>"
+          "Jorge Aparicio <japaricious@gmail.com>"
+          "Alexis Beingessner <a.beingessner@gmail.com>"
+          "Brian Anderson <>"
+          "tbu- <>"
+          "Manish Goregaokar <>"
+          "Aaron Turon <aturon@mozilla.com>"
+          "Adolfo Ochagavía <>"
+          "Niko Matsakis <>"
+          "Steven Fackler <>"
+          "Chase Southwood <csouth3@illinois.edu>"
+          "Eduard Burtescu <>"
+          "Florian Wilkens <>"
+          "Félix Raimundo <>"
+          "Tibor Benke <>"
+          "Markus Siemens <markus@m-siemens.de>"
+          "Josh Branchaud <jbranchaud@gmail.com>"
+          "Huon Wilson <dbau.pp@gmail.com>"
+          "Corey Farwell <coref@rwell.org>"
+          "Aaron Liblong <>"
+          "Nick Cameron <nrc@ncameron.org>"
+          "Patrick Walton <pcwalton@mimiga.net>"
+          "Felix S Klock II <>"
+          "Andrew Paseltiner <apaseltiner@gmail.com>"
+          "Sean McArthur <sean.monstar@gmail.com>"
+          "Vadim Petrochenkov <>"
+        ];
+        features = {
+          "eders" = [ "serde" ];
+        };
       };
       "version_check" = rec {
         crateName = "version_check";
@@ -3575,6 +3755,10 @@ rec {
           {
             name = "anyhow";
             packageId = "anyhow";
+          }
+          {
+            name = "clap";
+            packageId = "clap";
           }
           {
             name = "config";

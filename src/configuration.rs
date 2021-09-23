@@ -28,9 +28,9 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    pub fn new() -> Result<Self, ConfigError> {
+    pub fn new(filename: &str) -> Result<Self, ConfigError> {
         let mut s = Config::default();
-        s.merge(File::with_name("webdav_ss"))?;
+        s.merge(File::with_name(filename))?;
         s.merge(Environment::with_prefix("app"))?;
         s.try_into()
     }
