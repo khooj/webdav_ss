@@ -10,7 +10,8 @@
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
     let
       rust-version = "1.54.0";
-    in flake-utils.lib.eachDefaultSystem (system:
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+    in flake-utils.lib.eachSystem systems (system:
       let
         overlays = [
           rust-overlay.overlay
@@ -53,7 +54,9 @@
       in rec {
         defaultPackage = pkg.rootCrate.build;
 
-        nixosModules.webdav_ss = import ./module.nix { webdav_ss = defaultPackage; };
+        nixosModules.webdav_ss = import ./module.nix;
+
+        checks.nixosTests = (import ./nixosTests.nix { inherit system pkgs; }).test;
 
         devShell = with pkgs;
           mkShell {
