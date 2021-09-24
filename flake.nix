@@ -49,6 +49,7 @@
           openssl
           cmake
           crate2nix
+          nixos-shell
         ];
         nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
       in rec {
