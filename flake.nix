@@ -18,7 +18,7 @@
           (self: super: rec {
             rustc = self.rust-bin.stable.${rust-version}.default.override {
               extensions =
-                [ "rust-src" "rust-std" "rustfmt-preview" "llvm-tools-preview" ];
+                [ "rust-src" "rust-std" "rustfmt" "clippy" "rust-analysis" ];
             };
             cargo = rustc;
           })
@@ -38,7 +38,7 @@
         buildInputs = with pkgs; [
           litmus
           sccache
-          pkg-config
+          pkgconfig
           gnumake
           jq
           git
@@ -65,6 +65,7 @@
             shellHook = ''
               #export RUSTC_WRAPPER="${pkgs.sccache}/bin/sccache"
               export PATH=$PATH:$HOME/.cargo/bin
+              export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig"
             '';
           };
       }) // {
