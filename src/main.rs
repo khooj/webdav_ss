@@ -18,7 +18,14 @@ use repository::MemoryRepository;
 
 fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
     match typ {
-        FilesystemType::FS => LocalFs::new(fs.path.as_ref().unwrap(), false, false, false),
+        FilesystemType::FS => {
+            // TODO: move dir check
+            let p = fs.path.as_ref().unwrap();
+            if let Err(_) = std::fs::metadata(p) {
+                std::fs::create_dir_all(p).unwrap();
+            }
+            LocalFs::new(fs.path.as_ref().unwrap(), false, false, false)
+        },
         FilesystemType::Mem => MemFs::new(),
     }
 }

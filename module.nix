@@ -39,6 +39,12 @@ with lib;
 			default = 5656;
 		};
 
+		logLevel = mkOption {
+			type = types.enum [ "error" "warn" "info" "debug" ];
+			description = "Log level";
+			default = "error";
+		};
+
 		filesystems = with types; let 
 			subtype = submodule {
 				options = {
@@ -72,6 +78,9 @@ with lib;
 			wantedBy = [ "multi-user.target" "network-online.target" ];
 			script = "${cfg.package}/bin/webdav_ss -c ${cfgFile}";
 			restartIfChanged = true;
+			environment = {
+				"RUST_LOG" = cfg.logLevel;
+			};
 			serviceConfig = {
 				Restart = "on-failure";
 				RestartSec = 3;
