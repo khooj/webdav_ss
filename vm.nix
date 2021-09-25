@@ -6,7 +6,8 @@
 		host = "0.0.0.0";
 		filesystems = [
 			{
-				path = "/fs1";
+				path = "/tmp/webdav_ss/fs1";
+				mount_path = "/fs1";
 				type = "Mem";
 			}
 		];

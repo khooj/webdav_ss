@@ -8,7 +8,7 @@ let
 		};
 
 		filesystems = map (x: {
-			inherit (x) path type;
+			inherit (x) path type mount_path;
 		}) cfg.filesystems;
 	});
 in
@@ -38,12 +38,17 @@ with lib;
 			default = 5656;
 		};
 
-		filesystems = with types; mkOption {
-			type = listOf (submodule {
+		filesystems = with types; let 
+			subtype = submodule {
 				options = {
 					path = mkOption {
 						type = str;
-						description = "Mounted backend path";
+						description = "(FS Only) system path";
+					};
+
+					mount_path = mkOption {
+						type = str;
+						description = "Mount path";
 					};
 
 					type = mkOption {
@@ -51,7 +56,9 @@ with lib;
 						description = "Mounted backend type";
 					};
 				};
-			});
+			};
+		in mkOption {
+			type = listOf subtype;
 			description = "Mounted filesystems";
 			default = [];
 		};

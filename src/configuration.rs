@@ -1,4 +1,3 @@
-use std::env;
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
@@ -17,6 +16,7 @@ pub enum FilesystemType {
 #[derive(Debug, Deserialize)]
 pub struct Filesystem {
     pub path: String,
+    pub mount_path: String,
     #[serde(rename = "type")]
     pub typ: FilesystemType,
 }

@@ -18,15 +18,8 @@ use configuration::{Configuration, Filesystem, FilesystemType};
 use repository::MemoryRepository;
 
 fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
-    let cwd = std::env::current_dir().unwrap();
-    let mut p = PathBuf::from_str(&fs.path).unwrap();
-    if p.is_absolute() {
-        p = p.strip_prefix("/").unwrap().into();
-    }
-    let p = cwd.join(p);
-    debug!(path = ?p);
     match typ {
-        FilesystemType::FS => LocalFs::new(p.to_str().unwrap(), false, false, false),
+        FilesystemType::FS => LocalFs::new(&fs.path, false, false, false),
         FilesystemType::Mem => MemFs::new(),
     }
 }
@@ -75,7 +68,7 @@ async fn main() {
 
     for fss in config.filesystems {
         fs = fs
-            .add_route((&fss.path, get_backend_by_type(fss.typ, &fss)))
+            .add_route((&fss.mount_path, get_backend_by_type(fss.typ, &fss)))
             .unwrap();
     }
 
