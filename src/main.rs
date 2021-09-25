@@ -1,18 +1,35 @@
+use clap::{App, Arg};
 use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
-use std::convert::Infallible;
-use webdav_handler::memfs::MemFs;
+use std::{convert::Infallible, net::SocketAddr, str::FromStr};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
+use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
 
 mod aggregate;
+mod configuration;
 mod repository;
 mod backend;
 
 use aggregate::AggregateBuilder;
+use configuration::{Configuration, Filesystem, FilesystemType};
 use repository::MemoryRepository;
+
+fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
+    match typ {
+        FilesystemType::FS => {
+            // TODO: move dir check
+            let p = fs.path.as_ref().unwrap();
+            if let Err(_) = std::fs::metadata(p) {
+                std::fs::create_dir_all(p).unwrap();
+            }
+            LocalFs::new(fs.path.as_ref().unwrap(), false, false, false)
+        },
+        FilesystemType::Mem => MemFs::new(),
+    }
+}
 
 fn setup_tracing() {
     use tracing_subscriber::{fmt, prelude::*, registry::Registry, EnvFilter};
@@ -35,12 +52,33 @@ fn setup_tracing() {
 async fn main() {
     setup_tracing();
 
-    let addr = ([127, 0, 0, 1], 3000).into();
-    let fs = AggregateBuilder::new(Box::new(MemoryRepository::new()))
-        .add_route(("/fs1", MemFs::new()))
-        .unwrap()
-        .add_route(("/", MemFs::new()))
-        .unwrap();
+    let matches = App::new("webdav_ss")
+        .version("0.1")
+        .author("Igor Gilmutdinov <bladoff@gmail.com>")
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("FILE")
+                .help("sets custom config file")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let config = matches.value_of("config").unwrap_or("webdav_ss.yml");
+
+    let config = Configuration::new(config).expect("can't get configuration");
+
+    let addr = SocketAddr::from_str(&format!("{}:{}", config.app.host, config.app.port))
+        .expect("can't parse host and port");
+    let mut fs = AggregateBuilder::new(Box::new(MemoryRepository::new()));
+
+    for fss in config.filesystems {
+        fs = fs
+            .add_route((&fss.mount_path, get_backend_by_type(fss.typ, &fss)))
+            .unwrap();
+    }
+
     let dav_server = DavHandler::builder()
         .filesystem(fs.build())
         .locksystem(MemLs::new())

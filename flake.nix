@@ -10,20 +10,22 @@
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
     let
       rust-version = "1.54.0";
-    in flake-utils.lib.eachDefaultSystem (system:
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+    in flake-utils.lib.eachSystem systems (system:
       let
         overlays = [
           rust-overlay.overlay
           (self: super: rec {
             rustc = self.rust-bin.stable.${rust-version}.default.override {
               extensions =
-                [ "rust-src" "rustfmt-preview" "llvm-tools-preview" ];
+                [ "rust-src" "rust-std" "rustfmt-preview" "llvm-tools-preview" ];
             };
             cargo = rustc;
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; };
         lib = pkgs.lib;
+        pkg = import ./Cargo.nix { inherit pkgs; };
         litmus = pkgs.stdenv.mkDerivation rec {
           pname = "litmus";
           version = "0.13";
@@ -46,9 +48,15 @@
           python3
           openssl
           cmake
+          crate2nix
+          nixos-shell
         ];
         nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
       in rec {
+        defaultPackage = pkg.rootCrate.build;
+
+        checks.nixosTests = (import ./nixosTests.nix { inherit system pkgs litmus; }).test;
+
         devShell = with pkgs;
           mkShell {
             buildInputs = [ ] ++ buildInputs;
@@ -59,5 +67,7 @@
               export PATH=$PATH:$HOME/.cargo/bin
             '';
           };
-      });
+      }) // {
+        nixosModules.webdav_ss = import ./module.nix;
+      };
 }
