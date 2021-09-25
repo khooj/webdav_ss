@@ -55,8 +55,6 @@
       in rec {
         defaultPackage = pkg.rootCrate.build;
 
-        nixosModules.webdav_ss = import ./module.nix;
-
         checks.nixosTests = (import ./nixosTests.nix { inherit system pkgs litmus; }).test;
 
         devShell = with pkgs;
@@ -69,5 +67,7 @@
               export PATH=$PATH:$HOME/.cargo/bin
             '';
           };
-      });
+      }) // {
+        nixosModules.webdav_ss = import ./module.nix;
+      };
 }
