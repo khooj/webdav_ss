@@ -8,7 +8,8 @@ let
 		};
 
 		filesystems = map (x: {
-			inherit (x) path type mount_path;
+			inherit (x) type mount_path;
+			path = if (x.path != null) then x.path else null;
 		}) cfg.filesystems;
 	});
 in
@@ -42,13 +43,15 @@ with lib;
 			subtype = submodule {
 				options = {
 					path = mkOption {
-						type = str;
+						type = nullOr str;
 						description = "(FS Only) system path";
+						default = null;
 					};
 
 					mount_path = mkOption {
 						type = str;
 						description = "Mount path";
+						default = "/";
 					};
 
 					type = mkOption {

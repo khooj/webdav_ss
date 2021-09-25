@@ -3,8 +3,7 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
-use std::{convert::Infallible, net::SocketAddr, path::PathBuf, str::FromStr};
-use tracing::debug;
+use std::{convert::Infallible, net::SocketAddr, str::FromStr};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
@@ -19,7 +18,7 @@ use repository::MemoryRepository;
 
 fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
     match typ {
-        FilesystemType::FS => LocalFs::new(&fs.path, false, false, false),
+        FilesystemType::FS => LocalFs::new(fs.path.as_ref().unwrap(), false, false, false),
         FilesystemType::Mem => MemFs::new(),
     }
 }

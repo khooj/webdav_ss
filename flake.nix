@@ -57,7 +57,7 @@
 
         nixosModules.webdav_ss = import ./module.nix;
 
-        checks.nixosTests = (import ./nixosTests.nix { inherit system pkgs; }).test;
+        checks.nixosTests = (import ./nixosTests.nix { inherit system pkgs litmus; }).test;
 
         devShell = with pkgs;
           mkShell {

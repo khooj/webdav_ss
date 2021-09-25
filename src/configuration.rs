@@ -15,7 +15,7 @@ pub enum FilesystemType {
 
 #[derive(Debug, Deserialize)]
 pub struct Filesystem {
-    pub path: String,
+    pub path: Option<String>,
     pub mount_path: String,
     #[serde(rename = "type")]
     pub typ: FilesystemType,
