@@ -21,3 +21,7 @@ clap = "2.33"
 rusoto_core = { version = "0.47", default-features = false, features = ["rustls"] }
 rusoto_s3 = { version = "0.47", default-features = false, features = ["rustls"] }
 bytes = "1.1"
+derivative = "2.2.0"
+tokio-util = { version = "0.6", features = ["io"] }
+futures-core = "0.3"
+tokio-stream = "0.1"

@@ -2,11 +2,13 @@ use anyhow::{anyhow, Result};
 use futures_util::FutureExt;
 use hyper::StatusCode;
 use rusoto_core::{credential::EnvironmentProvider, Client, HttpClient, Region};
-use rusoto_s3::S3Client;
+use rusoto_s3::{Bucket, S3Client, S3};
+use std::io::{BufRead, BufReader, Cursor};
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::{collections::HashMap, time::SystemTime};
-use tokio::io::BufWriter;
-use tracing::instrument;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
+use tracing::{error, instrument};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
@@ -16,14 +18,31 @@ use webdav_handler::{
     },
 };
 
+struct S3ClientWrapper<'a>(&'a S3Client);
+
+impl<'a> std::fmt::Debug for S3ClientWrapper<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "s3 client wrapper")
+    }
+}
+
+impl<'a> Deref for S3ClientWrapper<'a> {
+    type Target = S3Client;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
 #[derive(Clone)]
-pub struct S3 {
+pub struct S3Backend {
     name: String,
+    bucket: String,
     memfs: Box<MemFs>,
     client: S3Client,
 }
 
-impl S3 {
+impl S3Backend {
     pub fn new(name: &str, region: &str, bucket: &str) -> Result<Self> {
         let name = name.to_owned();
         let region = region.parse()?;
@@ -31,20 +50,25 @@ impl S3 {
         let client = Client::new_with(creds, HttpClient::new()?);
         let client = S3Client::new_with_client(client, region);
 
-        Ok(S3 {
+        Ok(S3Backend {
             name,
+            bucket: bucket.to_owned(),
             client,
             memfs: MemFs::new(),
         })
     }
 }
 
-#[derive(Debug)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 struct S3OpenFile {
     is_new: bool,
     path: DavPath,
     options: OpenOptions,
-    buf: Vec<u8>,
+    bucket: String,
+    cursor: Cursor<Vec<u8>>,
+    #[derivative(Debug = "ignore")]
+    client: S3Client,
 }
 
 impl DavFile for S3OpenFile {
@@ -60,30 +84,54 @@ impl DavFile for S3OpenFile {
 
     fn write_buf<'a>(&'a mut self, buf: Box<dyn bytes::Buf + Send>) -> FsFuture<()> {
         async move {
-            self.buf.extend_from_slice(buf.chunk());
+            let b = buf.chunk();
+            self.cursor.write(b).await.unwrap();
             Ok(())
         }
         .boxed()
     }
 
     fn write_bytes<'a>(&'a mut self, buf: bytes::Bytes) -> FsFuture<()> {
+        use bytes::Buf;
         async move {
-            self.buf.extend(buf.iter());
+            self.cursor.write(buf.chunk()).await.unwrap();
             Ok(())
         }
         .boxed()
     }
 
     fn read_bytes<'a>(&'a mut self, count: usize) -> FsFuture<bytes::Bytes> {
-        async move { Ok(bytes::Bytes::new()) }.boxed()
+        async move {
+            let mut b = Vec::with_capacity(count);
+            b.resize(count, 0);
+            self.cursor.read(b.as_mut()).await.unwrap();
+            Ok(bytes::Bytes::from(b))
+        }
+        .boxed()
     }
 
     fn seek<'a>(&'a mut self, pos: std::io::SeekFrom) -> FsFuture<u64> {
-        async move { Ok(0u64) }.boxed()
+        async move { Ok(self.cursor.seek(pos).await.unwrap()) }.boxed()
     }
 
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
-        async move { Ok(()) }.boxed()
+        use tokio_util::io::ReaderStream;
+        let data = self.cursor.clone();
+
+        async move {
+            let _ = self
+                .client
+                .put_object(rusoto_s3::PutObjectRequest {
+                    bucket: self.bucket.clone(),
+                    key: self.path.to_string(),
+                    body: Some(rusoto_core::ByteStream::new(ReaderStream::new(data))),
+                    ..rusoto_s3::PutObjectRequest::default()
+                })
+                .await
+                .unwrap();
+            Ok(())
+        }
+        .boxed()
     }
 }
 
@@ -125,10 +173,39 @@ impl DavMetaData for S3MetaData {
     }
 }
 
-impl DavFileSystem for S3 {
+impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
+            let mut is_new = true;
+            let _ = match self
+                .client
+                .head_object(rusoto_s3::HeadObjectRequest {
+                    bucket: self.bucket.clone(),
+                    key: path.to_string(),
+                    ..rusoto_s3::HeadObjectRequest::default()
+                })
+                .await
+            {
+                Ok(k) => {
+                    is_new = false;
+                    k
+                }
+                Err(e) => {
+                    error!(err = %e);
+                    return Err(FsError::GeneralFailure);
+                }
+            };
+
+            let cursor = Cursor::new(vec![]);
+            Ok(Box::new(S3OpenFile {
+                cursor,
+                bucket: self.bucket.clone(),
+                is_new,
+                options,
+                path: path.clone(),
+                client: self.client.clone(),
+            }) as Box<dyn DavFile>)
         }
         .boxed()
     }

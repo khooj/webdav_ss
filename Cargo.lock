@@ -258,6 +258,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derivative"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1532,6 +1543,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-stream"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b2f3f698253f03119ac0102beaa64f67a67e08074d03a22d18784104543727f"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1838,6 +1860,8 @@ dependencies = [
  "bytes",
  "clap",
  "config",
+ "derivative",
+ "futures-core",
  "futures-util",
  "hyper",
  "percent-encoding 2.1.0",
@@ -1845,6 +1869,8 @@ dependencies = [
  "rusoto_s3",
  "serde",
  "tokio",
+ "tokio-stream",
+ "tokio-util",
  "tracing",
  "tracing-log",
  "tracing-subscriber",
