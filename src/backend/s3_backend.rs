@@ -173,6 +173,24 @@ impl DavMetaData for S3MetaData {
     }
 }
 
+struct S3DirEntry {}
+
+impl DavDirEntry for S3DirEntry {
+    fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
+        async move {
+            Ok(Box::new(S3MetaData {
+                len: 0,
+                path: DavPath::new("/").unwrap(),
+            }) as Box<dyn DavMetaData>)
+        }
+        .boxed()
+    }
+
+    fn name(&self) -> Vec<u8> {
+        "asd".into()
+    }
+}
+
 impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
@@ -216,37 +234,140 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
-        async move { self.memfs.read_dir(path, meta).await }.boxed()
+        async move {
+            let objects = self
+                .client
+                .list_objects_v2(rusoto_s3::ListObjectsV2Request {
+                    bucket: self.bucket.clone(),
+                    prefix: Some(path.to_string()),
+                    ..rusoto_s3::ListObjectsV2Request::default()
+                })
+                .await
+                .unwrap();
+
+            let s = objects
+                .contents
+                .unwrap_or(vec![])
+                .into_iter()
+                .map(|e| Box::new(S3DirEntry {}) as Box<dyn DavDirEntry>);
+            let s = futures_util::stream::iter(s);
+            let s = Box::pin(s) as FsStream<Box<dyn DavDirEntry>>;
+
+            Ok(s)
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
-        async move { self.memfs.metadata(path).await }.boxed()
+        async move {
+            let head = self
+                .client
+                .head_object(rusoto_s3::HeadObjectRequest {
+                    bucket: self.bucket.clone(),
+                    key: path.to_string(),
+                    ..rusoto_s3::HeadObjectRequest::default()
+                })
+                .await
+                .unwrap();
+            Ok(Box::new(S3MetaData {
+                len: 0,
+                path: path.clone(),
+            }) as Box<dyn DavMetaData>)
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
-        async move { self.memfs.create_dir(path).await }.boxed()
+        async move { Ok(()) }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
-        async move { self.memfs.remove_file(path).await }.boxed()
+        async move {
+            let resp = self
+                .client
+                .delete_object(rusoto_s3::DeleteObjectRequest {
+                    bucket: self.bucket.clone(),
+                    key: path.to_string(),
+                    ..rusoto_s3::DeleteObjectRequest::default()
+                })
+                .await
+                .unwrap();
+            Ok(())
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
-        async move { self.memfs.remove_dir(path).await }.boxed()
+        async move {
+            let objects = self
+                .client
+                .list_objects_v2(rusoto_s3::ListObjectsV2Request {
+                    bucket: self.bucket.clone(),
+                    prefix: Some(path.to_string()),
+                    ..rusoto_s3::ListObjectsV2Request::default()
+                })
+                .await
+                .unwrap();
+
+            for obj in objects.contents.unwrap_or(vec![]) {
+                self.remove_file(&DavPath::new(&obj.key.unwrap()).unwrap())
+                    .await?;
+            }
+            Ok(())
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
-        async move { self.memfs.rename(from, to).await }.boxed()
+        async move {
+            let resp = self
+                .client
+                .copy_object(rusoto_s3::CopyObjectRequest {
+                    bucket: self.bucket.clone(),
+                    copy_source: from.to_string(),
+                    key: to.to_string(),
+                    ..rusoto_s3::CopyObjectRequest::default()
+                })
+                .await
+                .unwrap();
+
+            let resp = self
+                .client
+                .delete_object(rusoto_s3::DeleteObjectRequest {
+                    bucket: self.bucket.clone(),
+                    key: from.to_string(),
+                    ..rusoto_s3::DeleteObjectRequest::default()
+                })
+                .await
+                .unwrap();
+
+            Ok(())
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
-        async move { self.memfs.copy(from, to).await }.boxed()
+        async move {
+            let resp = self
+                .client
+                .copy_object(rusoto_s3::CopyObjectRequest {
+                    bucket: self.bucket.clone(),
+                    copy_source: from.to_string(),
+                    key: to.to_string(),
+                    ..rusoto_s3::CopyObjectRequest::default()
+                })
+                .await
+                .unwrap();
+
+            Ok(())
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -254,7 +375,7 @@ impl DavFileSystem for S3Backend {
         &'a self,
         path: &'a DavPath,
     ) -> std::pin::Pin<Box<dyn futures_util::Future<Output = bool> + Send + 'a>> {
-        async move { true }.boxed()
+        async move { false }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -263,7 +384,7 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
-        async move { self.memfs.patch_props(path, patch).await }.boxed()
+        async move { Err(FsError::NotImplemented) }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -272,7 +393,7 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
-        self.memfs.get_prop(path, prop)
+        async move { Err(FsError::NotImplemented) }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -281,6 +402,6 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
-        self.memfs.get_props(path, do_content)
+        async move { Err(FsError::NotImplemented) }.boxed()
     }
 }
