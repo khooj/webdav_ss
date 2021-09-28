@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 webdav-handler = "0.2.0"
-hyper = { version = "0.14", default-features = false, features = ["server", "stream"] }
+hyper = { version = "0.14", default-features = false, features = ["server", "tcp", "http1", "stream", "client"] }
 tokio = { version = "1", features = ["full"] }
 futures-util = { version = "0.3", default-features = false }
 anyhow = "1"
@@ -18,10 +18,15 @@ tracing-log = "0.1"
 config = { version = "0.11", default-features = false, features = ["yaml"] }
 serde = { version = "1", features = [ "derive" ] }
 clap = "2.33"
-rusoto_core = { version = "0.47", default-features = false, features = ["rustls"] }
-rusoto_s3 = { version = "0.47", default-features = false, features = ["rustls"] }
+#rust-s3 = { git = "https://github.com/durch/rust-s3", rev = "5e2fd2f75b4e4da885210fa7a8ae319d4b02eeaf", features = ["rustls-tls", "no-verify-ssl"] }
+rust-s3 = { git = "https://github.com/khooj/rust-s3", rev = "5b9a6e9e33547df216ddf0b4e864cb49c3698fb0", features = ["rustls-tls", "no-verify-ssl"] }
+#rust-s3 = { version = "0.26", features = ["rustls-tls", "no-verify-ssl"] }
 bytes = "1.1"
 derivative = "2.2.0"
 tokio-util = { version = "0.6", features = ["io"] }
 futures-core = "0.3"
 tokio-stream = "0.1"
+rusty-s3 = { version = "0.1.2" }
+
+[dev-dependencies]
+testcontainers = "0.12"

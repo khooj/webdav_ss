@@ -7,15 +7,12 @@ use std::{convert::Infallible, net::SocketAddr, str::FromStr};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
-
-mod aggregate;
-mod configuration;
-mod repository;
-mod backend;
-
-use aggregate::AggregateBuilder;
-use configuration::{Configuration, Filesystem, FilesystemType};
-use repository::MemoryRepository;
+use webdav_ss::{
+    aggregate::AggregateBuilder,
+    backend::s3_backend::S3Backend,
+    configuration::{Configuration, Filesystem, FilesystemType},
+    repository::MemoryRepository,
+};
 
 fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
     match typ {
@@ -26,8 +23,13 @@ fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileS
                 std::fs::create_dir_all(p).unwrap();
             }
             LocalFs::new(fs.path.as_ref().unwrap(), false, false, false)
-        },
+        }
         FilesystemType::Mem => MemFs::new(),
+        FilesystemType::S3 => S3Backend::new(
+            fs.url.as_ref().unwrap(),
+            "eu-central-1",
+            fs.bucket.as_ref().unwrap(),
+        ).unwrap(),
     }
 }
 

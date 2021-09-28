@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use tracing::instrument;
+use tracing::{instrument, debug};
 use webdav_handler::{
     davpath::DavPath,
     fs::{
@@ -17,7 +17,7 @@ use webdav_handler::{
 
 type Routes = HashMap<String, Box<dyn DavFileSystem>>;
 
-const ENC: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.').remove(b'/');
+const ENC: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.').remove(b'/').remove(b'"');
 
 #[derive(Clone)]
 pub struct Aggregate {
@@ -44,6 +44,7 @@ impl Aggregate {
         Ok(())
     }
 
+    #[instrument(level = "debug", err, skip(self))]
     fn find_route(&self, route: &DavPath) -> FsResult<(Box<dyn DavFileSystem>, DavPath)> {
         let pb = route.as_pathbuf();
         for p in pb.ancestors() {
@@ -57,6 +58,7 @@ impl Aggregate {
                     "/{}",
                     percent_encode(path.to_str().unwrap().as_bytes(), ENC).to_owned()
                 );
+                debug!(route = %p, path = %path);
                 return Ok((
                     self.filesystems.get(&p).unwrap().clone(),
                     DavPath::new(&path).unwrap(),

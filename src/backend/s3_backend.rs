@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Result};
+use bytes::Buf;
 use futures_util::FutureExt;
+use hyper::client::{Client, HttpConnector};
+use hyper::server::conn::Http;
 use hyper::StatusCode;
-use rusoto_core::{credential::EnvironmentProvider, Client, HttpClient, Region};
-use rusoto_s3::{Bucket, S3Client, S3};
+use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
+use s3::{creds::Credentials, region::Region, Bucket, S3Error};
 use std::io::{BufRead, BufReader, Cursor};
-use std::marker::PhantomData;
-use std::ops::Deref;
-use std::{collections::HashMap, time::SystemTime};
+use std::{collections::HashMap, time::Duration, time::SystemTime};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
 use tracing::{error, instrument};
 use webdav_handler::memfs::MemFs;
@@ -18,44 +19,39 @@ use webdav_handler::{
     },
 };
 
-struct S3ClientWrapper<'a>(&'a S3Client);
-
-impl<'a> std::fmt::Debug for S3ClientWrapper<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "s3 client wrapper")
-    }
-}
-
-impl<'a> Deref for S3ClientWrapper<'a> {
-    type Target = S3Client;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
-    }
-}
-
 #[derive(Clone)]
 pub struct S3Backend {
-    name: String,
-    bucket: String,
     memfs: Box<MemFs>,
-    client: S3Client,
+    client: Bucket,
 }
 
 impl S3Backend {
-    pub fn new(name: &str, region: &str, bucket: &str) -> Result<Self> {
-        let name = name.to_owned();
-        let region = region.parse()?;
-        let creds = EnvironmentProvider::default();
-        let client = Client::new_with(creds, HttpClient::new()?);
-        let client = S3Client::new_with_client(client, region);
+    pub fn new(url: &str, region: &str, bucket: &str) -> Result<Box<dyn DavFileSystem>> {
+        let url = url.to_owned();
+        let client = Client::new();
+        let region = Region::Custom {
+            endpoint: url.clone(),
+            region: region.parse()?,
+        };
+        // let creds = Credentials::from_profile(Some("minio"))?;
+        let creds = Credentials::from_env()?;
+        let bucket = bucket.to_owned();
+        let mut bucket = Bucket::new(&bucket, region, creds)?;
+        bucket.set_path_style();
 
-        Ok(S3Backend {
-            name,
-            bucket: bucket.to_owned(),
-            client,
+        Ok(Box::new(S3Backend {
+            client: bucket,
             memfs: MemFs::new(),
-        })
+        }) as Box<dyn DavFileSystem>)
+    }
+
+    fn normalize_path(path: DavPath) -> String {
+        path.as_pathbuf()
+            .strip_prefix("/")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned()
     }
 }
 
@@ -63,12 +59,11 @@ impl S3Backend {
 #[derivative(Debug)]
 struct S3OpenFile {
     is_new: bool,
-    path: DavPath,
+    path: String,
     options: OpenOptions,
-    bucket: String,
     cursor: Cursor<Vec<u8>>,
     #[derivative(Debug = "ignore")]
-    client: S3Client,
+    client: Bucket,
 }
 
 impl DavFile for S3OpenFile {
@@ -115,21 +110,22 @@ impl DavFile for S3OpenFile {
     }
 
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
+        use std::io::Read;
         use tokio_util::io::ReaderStream;
         let data = self.cursor.clone();
 
         async move {
-            let _ = self
+            let (_, code) = self
                 .client
-                .put_object(rusoto_s3::PutObjectRequest {
-                    bucket: self.bucket.clone(),
-                    key: self.path.to_string(),
-                    body: Some(rusoto_core::ByteStream::new(ReaderStream::new(data))),
-                    ..rusoto_s3::PutObjectRequest::default()
-                })
+                .put_object(self.path.to_string(), data.chunk())
                 .await
                 .unwrap();
-            Ok(())
+
+            if code != 200 {
+                Err(FsError::GeneralFailure)
+            } else {
+                Ok(())
+            }
         }
         .boxed()
     }
@@ -137,7 +133,7 @@ impl DavFile for S3OpenFile {
 
 #[derive(Debug, Clone)]
 struct S3MetaData {
-    path: DavPath,
+    path: String,
     len: u64,
 }
 
@@ -153,7 +149,7 @@ impl DavMetaData for S3MetaData {
     }
 
     fn is_dir(&self) -> bool {
-        self.path.is_collection()
+        std::path::PathBuf::from(&self.path).is_dir()
     }
 
     fn accessed(&self) -> FsResult<SystemTime> {
@@ -180,7 +176,7 @@ impl DavDirEntry for S3DirEntry {
         async move {
             Ok(Box::new(S3MetaData {
                 len: 0,
-                path: DavPath::new("/").unwrap(),
+                path: "/".to_owned(),
             }) as Box<dyn DavMetaData>)
         }
         .boxed()
@@ -196,15 +192,7 @@ impl DavFileSystem for S3Backend {
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
             let mut is_new = true;
-            let _ = match self
-                .client
-                .head_object(rusoto_s3::HeadObjectRequest {
-                    bucket: self.bucket.clone(),
-                    key: path.to_string(),
-                    ..rusoto_s3::HeadObjectRequest::default()
-                })
-                .await
-            {
+            let _ = match self.client.head_object(&path.to_string()).await {
                 Ok(k) => {
                     is_new = false;
                     k
@@ -218,10 +206,9 @@ impl DavFileSystem for S3Backend {
             let cursor = Cursor::new(vec![]);
             Ok(Box::new(S3OpenFile {
                 cursor,
-                bucket: self.bucket.clone(),
                 is_new,
                 options,
-                path: path.clone(),
+                path: S3Backend::normalize_path(path.clone()),
                 client: self.client.clone(),
             }) as Box<dyn DavFile>)
         }
@@ -235,19 +222,9 @@ impl DavFileSystem for S3Backend {
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
         async move {
-            let objects = self
-                .client
-                .list_objects_v2(rusoto_s3::ListObjectsV2Request {
-                    bucket: self.bucket.clone(),
-                    prefix: Some(path.to_string()),
-                    ..rusoto_s3::ListObjectsV2Request::default()
-                })
-                .await
-                .unwrap();
+            let objects = self.client.list(path.to_string(), None).await.unwrap();
 
             let s = objects
-                .contents
-                .unwrap_or(vec![])
                 .into_iter()
                 .map(|e| Box::new(S3DirEntry {}) as Box<dyn DavDirEntry>);
             let s = futures_util::stream::iter(s);
@@ -261,18 +238,10 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
-            let head = self
-                .client
-                .head_object(rusoto_s3::HeadObjectRequest {
-                    bucket: self.bucket.clone(),
-                    key: path.to_string(),
-                    ..rusoto_s3::HeadObjectRequest::default()
-                })
-                .await
-                .unwrap();
+            let head = self.client.head_object(path.to_string()).await.unwrap();
             Ok(Box::new(S3MetaData {
                 len: 0,
-                path: path.clone(),
+                path: S3Backend::normalize_path(path.clone()),
             }) as Box<dyn DavMetaData>)
         }
         .boxed()
@@ -286,15 +255,7 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
-            let resp = self
-                .client
-                .delete_object(rusoto_s3::DeleteObjectRequest {
-                    bucket: self.bucket.clone(),
-                    key: path.to_string(),
-                    ..rusoto_s3::DeleteObjectRequest::default()
-                })
-                .await
-                .unwrap();
+            let resp = self.client.delete_object(path.to_string()).await.unwrap();
             Ok(())
         }
         .boxed()
@@ -303,19 +264,10 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
-            let objects = self
-                .client
-                .list_objects_v2(rusoto_s3::ListObjectsV2Request {
-                    bucket: self.bucket.clone(),
-                    prefix: Some(path.to_string()),
-                    ..rusoto_s3::ListObjectsV2Request::default()
-                })
-                .await
-                .unwrap();
+            let objects = self.client.list(path.to_string(), None).await.unwrap();
 
-            for obj in objects.contents.unwrap_or(vec![]) {
-                self.remove_file(&DavPath::new(&obj.key.unwrap()).unwrap())
-                    .await?;
+            for obj in objects.into_iter().flat_map(|f| f.contents) {
+                self.remove_file(&DavPath::new(&obj.key).unwrap()).await?;
             }
             Ok(())
         }
@@ -325,28 +277,28 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
-            let resp = self
-                .client
-                .copy_object(rusoto_s3::CopyObjectRequest {
-                    bucket: self.bucket.clone(),
-                    copy_source: from.to_string(),
-                    key: to.to_string(),
-                    ..rusoto_s3::CopyObjectRequest::default()
-                })
-                .await
-                .unwrap();
+            // let resp = self
+            //     .client
+            //     .copy_object(rusoto_s3::CopyObjectRequest {
+            //         bucket: self.bucket.clone(),
+            //         copy_source: from.to_string(),
+            //         key: to.to_string(),
+            //         ..rusoto_s3::CopyObjectRequest::default()
+            //     })
+            //     .await
+            //     .unwrap();
 
-            let resp = self
-                .client
-                .delete_object(rusoto_s3::DeleteObjectRequest {
-                    bucket: self.bucket.clone(),
-                    key: from.to_string(),
-                    ..rusoto_s3::DeleteObjectRequest::default()
-                })
-                .await
-                .unwrap();
+            // let resp = self
+            //     .client
+            //     .delete_object(rusoto_s3::DeleteObjectRequest {
+            //         bucket: self.bucket.clone(),
+            //         key: from.to_string(),
+            //         ..rusoto_s3::DeleteObjectRequest::default()
+            //     })
+            //     .await
+            //     .unwrap();
 
-            Ok(())
+            Err(FsError::NotImplemented)
         }
         .boxed()
     }
@@ -354,18 +306,18 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
-            let resp = self
-                .client
-                .copy_object(rusoto_s3::CopyObjectRequest {
-                    bucket: self.bucket.clone(),
-                    copy_source: from.to_string(),
-                    key: to.to_string(),
-                    ..rusoto_s3::CopyObjectRequest::default()
-                })
-                .await
-                .unwrap();
+            // let resp = self
+            //     .client
+            //     .copy_object(rusoto_s3::CopyObjectRequest {
+            //         bucket: self.bucket.clone(),
+            //         copy_source: from.to_string(),
+            //         key: to.to_string(),
+            //         ..rusoto_s3::CopyObjectRequest::default()
+            //     })
+            //     .await
+            //     .unwrap();
 
-            Ok(())
+            Err(FsError::NotImplemented)
         }
         .boxed()
     }

@@ -11,6 +11,7 @@ pub struct Application {
 pub enum FilesystemType {
     FS,
     Mem,
+    S3,
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,6 +20,8 @@ pub struct Filesystem {
     pub mount_path: String,
     #[serde(rename = "type")]
     pub typ: FilesystemType,
+    pub url: Option<String>,
+    pub bucket: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
