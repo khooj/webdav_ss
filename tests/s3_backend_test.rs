@@ -42,7 +42,7 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
 
 #[tokio::test]
 async fn test_s3_backend() {
-    env::set_var("RUST_LOG", "debug");
+    env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));

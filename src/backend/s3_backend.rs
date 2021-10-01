@@ -6,14 +6,14 @@ use hyper::server::conn::Http;
 use hyper::StatusCode;
 use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
 use s3::BucketConfiguration;
-use s3::{creds::Credentials, region::Region, serde_types::Tagging, Bucket, S3Error};
+use s3::{creds::Credentials, region::Region, serde_types::{Tagging, TagSet}, Bucket, S3Error};
 use std::io::{BufRead, BufReader, Cursor};
 use std::{
     collections::HashMap,
     time::{Duration, SystemTime},
 };
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
-use tracing::{error, debug, instrument};
+use tracing::{debug, error, instrument};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
@@ -39,7 +39,9 @@ impl S3Backend {
         let creds = Credentials::from_env()?;
         let bucket = bucket.to_owned();
         let config = BucketConfiguration::private();
-        let resp = Bucket::create(&bucket, region, creds, config).await.expect("cant create bucket");
+        let resp = Bucket::create(&bucket, region, creds, config)
+            .await
+            .expect("cant create bucket");
         if !resp.success() {
             error!(response_code = resp.response_code, response_text = %resp.response_text);
             return Err(anyhow!("cant create bucket"));
@@ -180,7 +182,7 @@ impl S3MetaData {
         metadata.len = len;
         metadata.path = path;
 
-        for kv in tags.tag_set.into_iter() {
+        for kv in tags.tag_set.tags.into_iter() {
             let k = kv.key();
             let v = kv.value();
             match &kv.key().as_str() {
@@ -257,7 +259,7 @@ impl DavDirEntry for S3DirEntry {
             Ok(Box::new(S3MetaData::extract_from_tags(
                 0,
                 "/".to_owned(),
-                Tagging { tag_set: vec![] },
+                Tagging { tag_set: TagSet{ tags: vec![] } },
             )) as Box<dyn DavMetaData>)
         }
         .boxed()
@@ -272,39 +274,53 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
+            let path = S3Backend::normalize_path(path.clone());
             let mut is_new = false;
+            let mut buf = vec![];
             let (head, code) = self
                 .client
-                .head_object(&path.to_string())
+                .head_object(&path)
                 .await
                 .map_err(|e| FsError::GeneralFailure)?;
 
             if code != 200 {
                 is_new = true;
+            } else {
+                let (obj, code) = self
+                    .client
+                    .get_object(&path)
+                    .await
+                    .map_err(|e| FsError::GeneralFailure)?;
+
+                if code != 200 {
+                    error!(reason = "cant get object", code = code);
+                    return Err(FsError::GeneralFailure);
+                }
+
+                buf = obj;
             }
 
             debug!(is_new = %is_new, path = %path);
             let (mut tags, code) = self
                 .client
-                .get_object_tagging(path.to_string())
+                .get_object_tagging(path.clone())
                 .await
                 .unwrap();
 
             if code != 200 {
-                tags = Some(Tagging { tag_set: vec![] });
+                tags = Some(Tagging { tag_set: TagSet{ tags: vec![] }});
             }
 
             debug!(tags = ?tags);
             let len = head.content_length.unwrap_or(0i64) as u64;
-            let path = S3Backend::normalize_path(path.clone());
             // let path = path.to_string();
             let metadata = S3MetaData::extract_from_tags(
                 len,
                 path.clone(),
-                tags.unwrap_or(Tagging { tag_set: vec![] }),
+                tags.unwrap_or(Tagging { tag_set: TagSet{ tags: vec![] }}),
             );
 
-            let cursor = Cursor::new(vec![]);
+            let cursor = Cursor::new(buf);
             Ok(Box::new(S3OpenFile {
                 metadata,
                 cursor,
@@ -340,25 +356,27 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
+            let path = S3Backend::normalize_path(path.clone());
             let (head, code) = self.client.head_object(path.to_string()).await.unwrap();
             if code != 200 {
+                debug!(reason = "head object error", code = code);
                 return Err(FsError::GeneralFailure);
             }
-            let (tags, code) = self
+            let (mut tags, code) = self
                 .client
                 .get_object_tagging(path.to_string())
                 .await
                 .unwrap();
             if code != 200 {
-                return Err(FsError::GeneralFailure);
+                debug!(reason = "tag object error", code = code);
+                tags = Some(Tagging { tag_set: TagSet{ tags: vec![] }});
             }
 
             let len = head.content_length.unwrap_or(0i64) as u64;
-            let path = S3Backend::normalize_path(path.clone());
             Ok(Box::new(S3MetaData::extract_from_tags(
                 len,
                 path,
-                tags.unwrap_or(Tagging { tag_set: vec![] }),
+                tags.unwrap(),
             )) as Box<dyn DavMetaData>)
         }
         .boxed()

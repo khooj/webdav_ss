@@ -19,7 +19,7 @@ config = { version = "0.11", default-features = false, features = ["yaml"] }
 serde = { version = "1", features = [ "derive" ] }
 clap = "2.33"
 #rust-s3 = { git = "https://github.com/durch/rust-s3", rev = "5e2fd2f75b4e4da885210fa7a8ae319d4b02eeaf", features = ["rustls-tls", "no-verify-ssl"] }
-rust-s3 = { git = "https://github.com/khooj/rust-s3", rev = "5b9a6e9e33547df216ddf0b4e864cb49c3698fb0", features = ["rustls-tls", "no-verify-ssl"] }
+rust-s3 = { git = "https://github.com/khooj/rust-s3", rev = "797152a34452da9c26939a97d48b78117888281a", features = ["rustls-tls", "no-verify-ssl"] }
 #rust-s3 = { version = "0.26", features = ["rustls-tls", "no-verify-ssl"] }
 bytes = "1.1"
 derivative = "2.2.0"
