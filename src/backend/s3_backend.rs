@@ -177,7 +177,6 @@ impl S3MetaData {
     }
 
     fn extract_from_tags(len: u64, path: String, tags: Tagging) -> Self {
-        let time = SystemTime::now();
         let mut metadata = S3MetaData::default();
         metadata.len = len;
         metadata.path = path;
@@ -283,6 +282,7 @@ impl DavFileSystem for S3Backend {
                 .await
                 .map_err(|e| FsError::GeneralFailure)?;
 
+            debug!(reason = "open head object", code = code);
             if code != 200 {
                 is_new = true;
             } else {
@@ -297,6 +297,7 @@ impl DavFileSystem for S3Backend {
                     return Err(FsError::GeneralFailure);
                 }
 
+                debug!(reason = "received data", length = obj.len());
                 buf = obj;
             }
 
@@ -313,7 +314,6 @@ impl DavFileSystem for S3Backend {
 
             debug!(tags = ?tags);
             let len = head.content_length.unwrap_or(0i64) as u64;
-            // let path = path.to_string();
             let metadata = S3MetaData::extract_from_tags(
                 len,
                 path.clone(),
