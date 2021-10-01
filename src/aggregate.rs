@@ -74,7 +74,9 @@ impl DavFileSystem for Aggregate {
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            Ok(route.open(&path, options).await?)
+            let result = route.open(&path, options).await;
+            debug!(result = ?result);
+            Ok(result?)
         }
         .boxed()
     }
@@ -87,7 +89,9 @@ impl DavFileSystem for Aggregate {
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            Ok(route.read_dir(&path, meta).await?)
+            let result = route.read_dir(&path, meta).await;
+            // TODO: somehow log result?
+            Ok(result?)
         }
         .boxed()
     }
@@ -96,7 +100,9 @@ impl DavFileSystem for Aggregate {
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            Ok(route.metadata(&path).await?)
+            let result = route.metadata(&path).await;
+            debug!(result = ?result);
+            Ok(result?)
         }
         .boxed()
     }
@@ -105,7 +111,9 @@ impl DavFileSystem for Aggregate {
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            Ok(route.create_dir(&path).await?)
+            let result = route.create_dir(&path).await;
+            debug!(result = ?result);
+            Ok(result?)
         }
         .boxed()
     }

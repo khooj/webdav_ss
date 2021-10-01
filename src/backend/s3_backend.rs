@@ -5,9 +5,12 @@ use hyper::client::{Client, HttpConnector};
 use hyper::server::conn::Http;
 use hyper::StatusCode;
 use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
-use s3::{creds::Credentials, region::Region, Bucket, S3Error};
+use s3::{creds::Credentials, region::Region, serde_types::Tagging, Bucket, S3Error};
 use std::io::{BufRead, BufReader, Cursor};
-use std::{collections::HashMap, time::Duration, time::SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
 use tracing::{error, instrument};
 use webdav_handler::memfs::MemFs;
@@ -64,32 +67,28 @@ struct S3OpenFile {
     cursor: Cursor<Vec<u8>>,
     #[derivative(Debug = "ignore")]
     client: Bucket,
+    metadata: S3MetaData,
 }
 
 impl DavFile for S3OpenFile {
     fn metadata<'a>(&'a mut self) -> FsFuture<Box<dyn DavMetaData>> {
-        async move {
-            Ok(Box::new(S3MetaData {
-                path: self.path.clone(),
-                len: 0u64,
-            }) as Box<dyn DavMetaData>)
-        }
-        .boxed()
+        async move { Ok(Box::new(self.metadata.clone()) as Box<dyn DavMetaData>) }.boxed()
     }
 
     fn write_buf<'a>(&'a mut self, buf: Box<dyn bytes::Buf + Send>) -> FsFuture<()> {
         async move {
             let b = buf.chunk();
             self.cursor.write(b).await.unwrap();
+            self.metadata.modified = SystemTime::now();
             Ok(())
         }
         .boxed()
     }
 
     fn write_bytes<'a>(&'a mut self, buf: bytes::Bytes) -> FsFuture<()> {
-        use bytes::Buf;
         async move {
             self.cursor.write(buf.chunk()).await.unwrap();
+            self.metadata.modified = SystemTime::now();
             Ok(())
         }
         .boxed()
@@ -100,6 +99,7 @@ impl DavFile for S3OpenFile {
             let mut b = Vec::with_capacity(count);
             b.resize(count, 0);
             self.cursor.read(b.as_mut()).await.unwrap();
+            self.metadata.accessed = SystemTime::now();
             Ok(bytes::Bytes::from(b))
         }
         .boxed()
@@ -110,8 +110,6 @@ impl DavFile for S3OpenFile {
     }
 
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
-        use std::io::Read;
-        use tokio_util::io::ReaderStream;
         let data = self.cursor.clone();
 
         async move {
@@ -122,22 +120,94 @@ impl DavFile for S3OpenFile {
                 .unwrap();
 
             if code != 200 {
-                Err(FsError::GeneralFailure)
-            } else {
-                Ok(())
+                return Err(FsError::GeneralFailure);
             }
+
+            let tags = self.metadata.as_metadata();
+
+            let (_, code) = self
+                .client
+                .put_object_tagging(&self.path.to_string(), &tags[..])
+                .await
+                .unwrap();
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+            Ok(())
         }
         .boxed()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug, Clone, Default)]
 struct S3MetaData {
     path: String,
     len: u64,
+    #[derivative(Default(value = "SystemTime::now()"))]
+    modified: SystemTime,
+    #[derivative(Default(value = "SystemTime::now()"))]
+    accessed: SystemTime,
+    #[derivative(Default(value = "SystemTime::now()"))]
+    created: SystemTime,
+    #[derivative(Default(value = "SystemTime::now()"))]
+    status_changed: SystemTime,
+    executable: bool,
 }
 
-impl S3MetaData {}
+impl S3MetaData {
+    fn extract_unixtime_or_zero(value: &str) -> SystemTime {
+        if let Ok(k) = value.parse() {
+            std::time::UNIX_EPOCH + Duration::from_secs(k)
+        } else {
+            SystemTime::now()
+        }
+    }
+
+    fn extract_from_tags(len: u64, path: String, tags: Tagging) -> Self {
+        let time = SystemTime::now();
+        let mut metadata = S3MetaData::default();
+        metadata.len = len;
+        metadata.path = path;
+
+        for kv in tags.tag_set.into_iter() {
+            let k = kv.key();
+            let v = kv.value();
+            match &kv.key().as_str() {
+                &"modified" => metadata.modified = S3MetaData::extract_unixtime_or_zero(&v),
+                &"accessed" => metadata.accessed = S3MetaData::extract_unixtime_or_zero(&v),
+                &"created" => metadata.created = S3MetaData::extract_unixtime_or_zero(&v),
+                &"status_changed" => {
+                    metadata.status_changed = S3MetaData::extract_unixtime_or_zero(&v)
+                }
+                _ => {}
+            }
+        }
+
+        metadata
+    }
+
+    fn as_unixtime(t: SystemTime) -> String {
+        if let Ok(n) = t.duration_since(std::time::UNIX_EPOCH) {
+            n.as_secs().to_string()
+        } else {
+            "0".to_owned()
+        }
+    }
+
+    fn as_metadata(&self) -> Vec<(String, String)> {
+        let modified = S3MetaData::as_unixtime(self.modified);
+        let accessed = S3MetaData::as_unixtime(self.accessed);
+        let created = S3MetaData::as_unixtime(self.created);
+        let status_changed = S3MetaData::as_unixtime(self.status_changed);
+        vec![
+            ("modified".into(), modified),
+            ("accessed".into(), accessed),
+            ("created".into(), created),
+            ("status_changed".into(), status_changed),
+        ]
+    }
+}
 
 impl DavMetaData for S3MetaData {
     fn len(&self) -> u64 {
@@ -145,7 +215,7 @@ impl DavMetaData for S3MetaData {
     }
 
     fn modified(&self) -> FsResult<SystemTime> {
-        Ok(SystemTime::now())
+        Ok(self.modified)
     }
 
     fn is_dir(&self) -> bool {
@@ -153,19 +223,19 @@ impl DavMetaData for S3MetaData {
     }
 
     fn accessed(&self) -> FsResult<SystemTime> {
-        Ok(SystemTime::now())
+        Ok(self.accessed)
     }
 
     fn created(&self) -> FsResult<SystemTime> {
-        Ok(SystemTime::now())
+        Ok(self.created)
     }
 
     fn status_changed(&self) -> FsResult<SystemTime> {
-        Ok(SystemTime::now())
+        Ok(self.status_changed)
     }
 
     fn executable(&self) -> FsResult<bool> {
-        Ok(false)
+        Ok(self.executable)
     }
 }
 
@@ -174,10 +244,11 @@ struct S3DirEntry {}
 impl DavDirEntry for S3DirEntry {
     fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
-            Ok(Box::new(S3MetaData {
-                len: 0,
-                path: "/".to_owned(),
-            }) as Box<dyn DavMetaData>)
+            Ok(Box::new(S3MetaData::extract_from_tags(
+                0,
+                "/".to_owned(),
+                Tagging { tag_set: vec![] },
+            )) as Box<dyn DavMetaData>)
         }
         .boxed()
     }
@@ -192,7 +263,7 @@ impl DavFileSystem for S3Backend {
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
             let mut is_new = true;
-            let _ = match self.client.head_object(&path.to_string()).await {
+            let (head, code) = match self.client.head_object(&path.to_string()).await {
                 Ok(k) => {
                     is_new = false;
                     k
@@ -203,12 +274,34 @@ impl DavFileSystem for S3Backend {
                 }
             };
 
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+
+            let (tags, code) = self
+                .client
+                .get_object_tagging(path.to_string())
+                .await
+                .unwrap();
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+
+            let len = head.content_length.unwrap_or(0i64) as u64;
+            let path = S3Backend::normalize_path(path.clone());
+            let metadata = S3MetaData::extract_from_tags(
+                len,
+                path.clone(),
+                tags.unwrap_or(Tagging { tag_set: vec![] }),
+            );
+
             let cursor = Cursor::new(vec![]);
             Ok(Box::new(S3OpenFile {
+                metadata,
                 cursor,
                 is_new,
                 options,
-                path: S3Backend::normalize_path(path.clone()),
+                path: path.clone(),
                 client: self.client.clone(),
             }) as Box<dyn DavFile>)
         }
@@ -238,11 +331,26 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
-            let head = self.client.head_object(path.to_string()).await.unwrap();
-            Ok(Box::new(S3MetaData {
-                len: 0,
-                path: S3Backend::normalize_path(path.clone()),
-            }) as Box<dyn DavMetaData>)
+            let (head, code) = self.client.head_object(path.to_string()).await.unwrap();
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+            let (tags, code) = self
+                .client
+                .get_object_tagging(path.to_string())
+                .await
+                .unwrap();
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+
+            let len = head.content_length.unwrap_or(0i64) as u64;
+            let path = S3Backend::normalize_path(path.clone());
+            Ok(Box::new(S3MetaData::extract_from_tags(
+                len,
+                path,
+                tags.unwrap_or(Tagging { tag_set: vec![] }),
+            )) as Box<dyn DavMetaData>)
         }
         .boxed()
     }
