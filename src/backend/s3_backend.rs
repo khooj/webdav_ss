@@ -5,6 +5,7 @@ use hyper::client::{Client, HttpConnector};
 use hyper::server::conn::Http;
 use hyper::StatusCode;
 use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
+use s3::BucketConfiguration;
 use s3::{creds::Credentials, region::Region, serde_types::Tagging, Bucket, S3Error};
 use std::io::{BufRead, BufReader, Cursor};
 use std::{
@@ -12,7 +13,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
-use tracing::{error, instrument};
+use tracing::{error, debug, instrument};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
@@ -29,18 +30,21 @@ pub struct S3Backend {
 }
 
 impl S3Backend {
-    pub fn new(url: &str, region: &str, bucket: &str) -> Result<Box<dyn DavFileSystem>> {
+    pub async fn new(url: &str, region: &str, bucket: &str) -> Result<Box<dyn DavFileSystem>> {
         let url = url.to_owned();
-        let client = Client::new();
         let region = Region::Custom {
             endpoint: url.clone(),
             region: region.parse()?,
         };
-        // let creds = Credentials::from_profile(Some("minio"))?;
         let creds = Credentials::from_env()?;
         let bucket = bucket.to_owned();
-        let mut bucket = Bucket::new(&bucket, region, creds)?;
-        bucket.set_path_style();
+        let config = BucketConfiguration::private();
+        let resp = Bucket::create(&bucket, region, creds, config).await.expect("cant create bucket");
+        if !resp.success() {
+            error!(response_code = resp.response_code, response_text = %resp.response_text);
+            return Err(anyhow!("cant create bucket"));
+        }
+        let bucket = resp.bucket;
 
         Ok(Box::new(S3Backend {
             client: bucket,
@@ -80,6 +84,7 @@ impl DavFile for S3OpenFile {
             let b = buf.chunk();
             self.cursor.write(b).await.unwrap();
             self.metadata.modified = SystemTime::now();
+            self.metadata.len += b.len() as u64;
             Ok(())
         }
         .boxed()
@@ -89,6 +94,7 @@ impl DavFile for S3OpenFile {
         async move {
             self.cursor.write(buf.chunk()).await.unwrap();
             self.metadata.modified = SystemTime::now();
+            self.metadata.len += buf.len() as u64;
             Ok(())
         }
         .boxed()
@@ -109,8 +115,10 @@ impl DavFile for S3OpenFile {
         async move { Ok(self.cursor.seek(pos).await.unwrap()) }.boxed()
     }
 
+    #[instrument(level = "debug", skip(self))]
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
         let data = self.cursor.clone();
+        debug!(path = %self.path, length = self.metadata.len);
 
         async move {
             let (_, code) = self
@@ -120,6 +128,7 @@ impl DavFile for S3OpenFile {
                 .unwrap();
 
             if code != 200 {
+                debug!(reason = "put object unsuccessful", code = code);
                 return Err(FsError::GeneralFailure);
             }
 
@@ -131,6 +140,7 @@ impl DavFile for S3OpenFile {
                 .await
                 .unwrap();
             if code != 200 {
+                debug!(reason = "tag object unsuccessful", code = code);
                 return Err(FsError::GeneralFailure);
             }
             Ok(())
@@ -262,33 +272,32 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
-            let mut is_new = true;
-            let (head, code) = match self.client.head_object(&path.to_string()).await {
-                Ok(k) => {
-                    is_new = false;
-                    k
-                }
-                Err(e) => {
-                    error!(err = %e);
-                    return Err(FsError::GeneralFailure);
-                }
-            };
+            let mut is_new = false;
+            let (head, code) = self
+                .client
+                .head_object(&path.to_string())
+                .await
+                .map_err(|e| FsError::GeneralFailure)?;
 
             if code != 200 {
-                return Err(FsError::GeneralFailure);
+                is_new = true;
             }
 
-            let (tags, code) = self
+            debug!(is_new = %is_new, path = %path);
+            let (mut tags, code) = self
                 .client
                 .get_object_tagging(path.to_string())
                 .await
                 .unwrap();
+
             if code != 200 {
-                return Err(FsError::GeneralFailure);
+                tags = Some(Tagging { tag_set: vec![] });
             }
 
+            debug!(tags = ?tags);
             let len = head.content_length.unwrap_or(0i64) as u64;
             let path = S3Backend::normalize_path(path.clone());
+            // let path = path.to_string();
             let metadata = S3MetaData::extract_from_tags(
                 len,
                 path.clone(),

@@ -75,7 +75,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.open(&path, options).await;
-            debug!(result = ?result);
+            debug!(method = "open", result = ?result);
             Ok(result?)
         }
         .boxed()
@@ -90,6 +90,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.read_dir(&path, meta).await;
+            debug!(method = "read_dir");
             // TODO: somehow log result?
             Ok(result?)
         }
@@ -101,7 +102,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.metadata(&path).await;
-            debug!(result = ?result);
+            debug!(method = "metadata", result = ?result);
             Ok(result?)
         }
         .boxed()
@@ -112,7 +113,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.create_dir(&path).await;
-            debug!(result = ?result);
+            debug!(method = "create_dir", result = ?result);
             Ok(result?)
         }
         .boxed()
@@ -122,6 +123,7 @@ impl DavFileSystem for Aggregate {
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
+            debug!(method = "remove_file");
             Ok(route.remove_file(&path).await?)
         }
         .boxed()
@@ -131,6 +133,7 @@ impl DavFileSystem for Aggregate {
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
+            debug!(method = "remove_dir");
             Ok(route.remove_dir(&path).await?)
         }
         .boxed()
@@ -141,6 +144,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
+            debug!(method = "rename");
             Ok(route.rename(&from, &to).await?)
         }
         .boxed()
@@ -151,6 +155,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
+            debug!(method = "copy");
             Ok(route.copy(&from, &to).await?)
         }
         .boxed()

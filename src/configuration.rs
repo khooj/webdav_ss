@@ -39,6 +39,7 @@ pub struct Filesystem {
     pub typ: FilesystemType,
     pub url: Option<String>,
     pub bucket: Option<String>,
+    pub region: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

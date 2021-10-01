@@ -52,10 +52,9 @@ async fn test_s3_backend() {
             message: "Detected default credentials".into(),
             stream: Stream::StdOut,
         })
-        .with_args(vec!["server".into(), "/data".into()]);
+        .with_args(vec!["server".into(), "/data".into()])
+        .with_env_var("MINIO_DOMAIN", "localhost");
 
-    env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
-    env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
 
     let docker = Cli::default();
     let cont = docker.run_with_args(image, args);
@@ -70,6 +69,7 @@ async fn test_s3_backend() {
         },
         filesystems: vec![Filesystem {
             mount_path: "/".into(),
+            region: Some("us-east-1".into()),
             path: None,
             bucket: Some("test".into()),
             typ: FilesystemType::S3,
@@ -77,7 +77,9 @@ async fn test_s3_backend() {
         }],
     };
 
-    let mut app = Box::pin(Application::build(config).run().fuse());
+    env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
+    env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
+    let mut app = Box::pin(Application::build(config).await.run().fuse());
     let cmd = Command::new("litmus")
         .arg(format!("http://localhost:8080"))
         .env("TESTS", "basic")

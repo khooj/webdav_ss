@@ -24,6 +24,6 @@ async fn main() {
     let config = matches.value_of("config").unwrap_or("webdav_ss.yml");
 
     let config = Configuration::new(config).expect("can't get configuration");
-    let app = Application::build(config);
+    let app = Application::build(config).await;
     app.run().await;
 }

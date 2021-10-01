@@ -14,7 +14,7 @@ use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
 
-fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
+async fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
     match typ {
         FilesystemType::FS => {
             // TODO: move dir check
@@ -27,9 +27,10 @@ fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileS
         FilesystemType::Mem => MemFs::new(),
         FilesystemType::S3 => S3Backend::new(
             fs.url.as_ref().unwrap(),
-            "eu-central-1",
+            fs.region.as_ref().unwrap(),
             fs.bucket.as_ref().unwrap(),
         )
+        .await
         .unwrap(),
     }
 }
@@ -40,14 +41,14 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build(config: Configuration) -> Application {
+    pub async fn build(config: Configuration) -> Application {
         let addr = SocketAddr::from_str(&format!("{}:{}", config.app.host, config.app.port))
             .expect("can't parse host and port");
         let mut fs = AggregateBuilder::new(Box::new(MemoryRepository::new()));
 
         for fss in config.filesystems {
             fs = fs
-                .add_route((&fss.mount_path, get_backend_by_type(fss.typ, &fss)))
+                .add_route((&fss.mount_path, get_backend_by_type(fss.typ, &fss).await))
                 .unwrap();
         }
 
