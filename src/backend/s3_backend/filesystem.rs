@@ -9,13 +9,13 @@ use hyper::client::{Client, HttpConnector};
 use hyper::server::conn::Http;
 use hyper::StatusCode;
 use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
-use s3::BucketConfiguration;
 use s3::{
     creds::Credentials,
     region::Region,
     serde_types::{TagSet, Tagging},
     Bucket, S3Error,
 };
+use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use std::io::{BufRead, BufReader, Cursor, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::{
@@ -73,11 +73,7 @@ impl S3Backend {
             .to_owned()
     }
 
-    async fn metadata_info(
-        &self,
-        path: PathBuf,
-        is_col: bool,
-    ) -> Result<Box<dyn DavMetaData>, FsError> {
+    async fn metadata_info(&self, path: PathBuf) -> Result<Box<dyn DavMetaData>, FsError> {
         let mut tags = Some(Tagging {
             tag_set: TagSet { tags: vec![] },
         });
@@ -93,28 +89,44 @@ impl S3Backend {
         }
 
         let normalized = S3Backend::normalize_path(path.clone());
-        let prefix = S3Backend::normalize_path(if is_col { path.join(".dir") } else { path });
+        let mut is_col = false;
+        let mut head: Option<(HeadObjectResult, String)> = None;
+        // check if it dir or file
+        for prefix in [path.join(".dir"), path] {
+            let prefix = S3Backend::normalize_path(prefix);
 
-        debug!(reason = "trying to head object", col = is_col, prefix = %prefix);
-        let (head, code) = self.client.head_object(prefix.clone()).await.unwrap();
-        if code != 200 {
-            debug!(reason = "head object error", code = code);
+            debug!(msg = "trying to head object", prefix = %prefix);
+            let (resp, code) = self.client.head_object(prefix.clone()).await.unwrap();
+            if code != 200 {
+                debug!(msg = "head object error, trying next", code = code);
+                continue;
+            }
+            if prefix.ends_with(".dir") {
+                is_col = true;
+            }
+            head = Some((resp, prefix));
+        }
+
+        if head.is_none() {
+            debug!(msg = "not found");
             return Err(FsError::NotFound);
         }
 
+        let head = head.unwrap();
+
         if !is_col {
-            let (t, code) = self.client.get_object_tagging(prefix).await.unwrap();
+            let (t, code) = self.client.get_object_tagging(head.1).await.unwrap();
             tags = t;
 
             if code != 200 {
-                debug!(reason = "tag object error", code = code);
+                debug!(msg = "tag object empty", code = code);
                 tags = Some(Tagging {
                     tag_set: TagSet { tags: vec![] },
                 });
             }
         }
 
-        let len = head.content_length.unwrap_or(0i64) as u64;
+        let len = head.0.content_length.unwrap_or(0i64) as u64;
         Ok(Box::new(S3MetaData::extract_from_tags(
             len,
             normalized,
@@ -212,24 +224,19 @@ impl DavFileSystem for S3Backend {
 
     #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
-        async move {
-            Ok(self
-                .metadata_info(path.as_pathbuf(), path.is_collection())
-                .await?)
-        }
-        .boxed()
+        async move { Ok(self.metadata_info(path.as_pathbuf()).await?) }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
-            let meta = self.metadata_info(path.as_pathbuf(), path.is_collection()).await;
+            let meta = self.metadata_info(path.as_pathbuf()).await;
             if let Ok(m) = meta {
                 if m.is_dir() {
                     debug!(msg = "dir already exist", path = ?path);
                     return Ok(());
                 }
-            
+            }
 
             let path = path.as_pathbuf();
             let prefix_dir = format!("{}/.dir", path.to_str().unwrap());
@@ -248,11 +255,19 @@ impl DavFileSystem for S3Backend {
                 return Ok(());
             }
 
-            let meta = self.metadata_info(parent.to_path_buf(), true).await;
-            if let Err(e) = meta {
-                debug!(msg = "parent folder does not exist", parent = ?parent, err = %e);
-                return Err(FsError::NotFound);
-            }
+            let meta = self.metadata_info(parent.to_path_buf()).await;
+            match meta {
+                Err(e) => {
+                    debug!(msg = "parent folder does not exist", parent = ?parent, err = %e);
+                    return Err(FsError::NotFound);
+                },
+                Ok(k) => {
+                    if k.is_file() {
+                        debug!(msg = "tried to create subfolder in file", parent = ?parent);
+                        return Err(FsError::Forbidden);
+                    }
+                }
+            };
 
             let (resp, code) = self
                 .client
