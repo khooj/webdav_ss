@@ -7,7 +7,7 @@ use hyper::StatusCode;
 use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
 use s3::BucketConfiguration;
 use s3::{creds::Credentials, region::Region, serde_types::{Tagging, TagSet}, Bucket, S3Error};
-use std::io::{BufRead, BufReader, Cursor};
+use std::io::{BufRead, BufReader, Cursor, SeekFrom};
 use std::{
     collections::HashMap,
     time::{Duration, SystemTime},
@@ -119,10 +119,11 @@ impl DavFile for S3OpenFile {
 
     #[instrument(level = "debug", skip(self))]
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
-        let data = self.cursor.clone();
+        let mut data = self.cursor.clone();
         debug!(path = %self.path, length = self.metadata.len);
 
         async move {
+            data.seek(SeekFrom::Start(0)).await.unwrap();
             let (_, code) = self
                 .client
                 .put_object(self.path.to_string(), data.chunk())
