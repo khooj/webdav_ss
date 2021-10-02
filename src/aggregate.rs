@@ -46,6 +46,7 @@ impl Aggregate {
 
     #[instrument(level = "debug", err, skip(self))]
     fn find_route(&self, route: &DavPath) -> FsResult<(Box<dyn DavFileSystem>, DavPath)> {
+        let col = route.is_collection();
         let pb = route.as_pathbuf();
         for p in pb.ancestors() {
             let p = p.to_str().ok_or(FsError::NotFound)?.to_owned();
@@ -54,10 +55,13 @@ impl Aggregate {
                     Err(_) => return Err(FsError::NotFound),
                     Ok(k) => k,
                 };
-                let path = format!(
+                let mut path = format!(
                     "/{}",
                     percent_encode(path.to_str().unwrap().as_bytes(), ENC).to_owned()
                 );
+                if col {
+                    path = format!("{}/", path);
+                }
                 debug!(route = %p, path = %path);
                 return Ok((
                     self.filesystems.get(&p).unwrap().clone(),
@@ -268,6 +272,9 @@ mod tests {
 
         let (_, f) = fs.find_route(&helper_path("/tmp/fs1/one/two.txt"))?;
         assert_eq!(f, helper_path("/one/two.txt"));
+
+        let (_, f) = fs.find_route(&helper_path("/tmp/fs1/one/"))?;
+        assert_eq!(f, helper_path("/one/"));
 
         assert!(fs.find_route(&helper_path("/not_exist")).is_err());
         Ok(())

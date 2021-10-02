@@ -57,7 +57,6 @@ async fn test_s3_backend() {
 
     let docker = Cli::default();
     let cont = docker.run_with_args(image, args);
-    let port = cont.get_host_port(9000).unwrap();
 
     let _cont = ContainerDrop { container: cont };
 

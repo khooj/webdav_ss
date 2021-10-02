@@ -4,5 +4,6 @@ app:
 filesystems:
   - mount_path: /
     type: S3
+    region: us-east-1
     url: http://localhost:9000
     bucket: test
