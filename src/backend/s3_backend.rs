@@ -6,7 +6,12 @@ use hyper::server::conn::Http;
 use hyper::StatusCode;
 use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
 use s3::BucketConfiguration;
-use s3::{creds::Credentials, region::Region, serde_types::{Tagging, TagSet}, Bucket, S3Error};
+use s3::{
+    creds::Credentials,
+    region::Region,
+    serde_types::{TagSet, Tagging},
+    Bucket, S3Error,
+};
 use std::io::{BufRead, BufReader, Cursor, SeekFrom};
 use std::{
     collections::HashMap,
@@ -259,7 +264,9 @@ impl DavDirEntry for S3DirEntry {
             Ok(Box::new(S3MetaData::extract_from_tags(
                 0,
                 "/".to_owned(),
-                Tagging { tag_set: TagSet{ tags: vec![] } },
+                Tagging {
+                    tag_set: TagSet { tags: vec![] },
+                },
             )) as Box<dyn DavMetaData>)
         }
         .boxed()
@@ -303,14 +310,12 @@ impl DavFileSystem for S3Backend {
             }
 
             debug!(is_new = %is_new, path = %path);
-            let (mut tags, code) = self
-                .client
-                .get_object_tagging(path.clone())
-                .await
-                .unwrap();
+            let (mut tags, code) = self.client.get_object_tagging(path.clone()).await.unwrap();
 
             if code != 200 {
-                tags = Some(Tagging { tag_set: TagSet{ tags: vec![] }});
+                tags = Some(Tagging {
+                    tag_set: TagSet { tags: vec![] },
+                });
             }
 
             debug!(tags = ?tags);
@@ -318,7 +323,9 @@ impl DavFileSystem for S3Backend {
             let metadata = S3MetaData::extract_from_tags(
                 len,
                 path.clone(),
-                tags.unwrap_or(Tagging { tag_set: TagSet{ tags: vec![] }}),
+                tags.unwrap_or(Tagging {
+                    tag_set: TagSet { tags: vec![] },
+                }),
             );
 
             let cursor = Cursor::new(buf);
@@ -341,6 +348,7 @@ impl DavFileSystem for S3Backend {
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
         async move {
+            let path = S3Backend::normalize_path(path.clone());
             let objects = self.client.list(path.to_string(), None).await.unwrap();
 
             let s = objects
@@ -361,7 +369,7 @@ impl DavFileSystem for S3Backend {
             let (head, code) = self.client.head_object(path.to_string()).await.unwrap();
             if code != 200 {
                 debug!(reason = "head object error", code = code);
-                return Err(FsError::GeneralFailure);
+                return Err(FsError::NotFound);
             }
             let (mut tags, code) = self
                 .client
@@ -370,28 +378,80 @@ impl DavFileSystem for S3Backend {
                 .unwrap();
             if code != 200 {
                 debug!(reason = "tag object error", code = code);
-                tags = Some(Tagging { tag_set: TagSet{ tags: vec![] }});
+                tags = Some(Tagging {
+                    tag_set: TagSet { tags: vec![] },
+                });
             }
 
             let len = head.content_length.unwrap_or(0i64) as u64;
-            Ok(Box::new(S3MetaData::extract_from_tags(
-                len,
-                path,
-                tags.unwrap(),
-            )) as Box<dyn DavMetaData>)
+            Ok(
+                Box::new(S3MetaData::extract_from_tags(len, path, tags.unwrap()))
+                    as Box<dyn DavMetaData>,
+            )
         }
         .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
-        async move { Ok(()) }.boxed()
+        async move {
+            let path = path.as_pathbuf();
+            let parent = path.parent().unwrap();
+            if parent.ends_with("/") && parent.starts_with("/") {
+                return Ok(());
+            }
+
+            let prefix = parent
+                .strip_prefix("/")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let resp = self
+                .client
+                .list(parent.to_str().unwrap().to_owned(), Some("/".to_owned()))
+                .await
+                .unwrap();
+
+            debug!(parent = ?path, prefix = %prefix, list_length = resp.len(), elems = ?resp);
+            if resp.is_empty() {
+                return Err(FsError::NotFound);
+            }
+
+            for r in resp {
+                if r.prefix == prefix && r.contents.is_empty() {
+                    return Err(FsError::NotFound);
+                }
+            }
+
+            let prefix = format!("{}/.dir", prefix);
+            let (resp, code) = self
+                .client
+                .put_object(prefix.clone(), &[])
+                .await
+                .unwrap();
+
+            debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = %prefix);
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+
+            Ok(())
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
-            let resp = self.client.delete_object(path.to_string()).await.unwrap();
+            let path = S3Backend::normalize_path(path.clone());
+            let (resp, code) = self.client.delete_object(path.to_string()).await.unwrap();
+
+            debug!(method = "remove file", code = code);
+            if code != 204 {
+                return Err(FsError::NotFound);
+            }
+
             Ok(())
         }
         .boxed()
@@ -400,11 +460,25 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
-            let objects = self.client.list(path.to_string(), None).await.unwrap();
+            let path = path.as_pathbuf();
+            let prefix = path.to_str().unwrap().to_owned();
+            let objects = self.client.list(prefix.clone(), None).await.unwrap();
 
-            for obj in objects.into_iter().flat_map(|f| f.contents) {
+            debug!(method = "remove_dir", prefix = %prefix, list = ?objects);
+            let mut removed = false;
+            for obj in objects
+                .into_iter()
+                .filter(|p| p.prefix == prefix)
+                .flat_map(|f| f.contents)
+            {
                 self.remove_file(&DavPath::new(&obj.key).unwrap()).await?;
+                removed = true;
             }
+
+            if !removed {
+                return Err(FsError::NotFound);
+            }
+
             Ok(())
         }
         .boxed()

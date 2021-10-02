@@ -46,7 +46,6 @@ async fn test_s3_backend() {
     webdav_ss::configuration::setup_tracing();
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));
-
     let image = GenericImage::new("minio/minio")
         .with_wait_for(WaitFor::LogMessage {
             message: "Detected default credentials".into(),
@@ -73,7 +72,7 @@ async fn test_s3_backend() {
             path: None,
             bucket: Some("test".into()),
             typ: FilesystemType::S3,
-            url: Some(format!("http://localhost:{}", port)),
+            url: Some(format!("http://localhost:{}", 9000)),
         }],
     };
 
