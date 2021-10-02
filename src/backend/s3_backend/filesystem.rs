@@ -16,11 +16,14 @@ use s3::{
     Bucket, S3Error,
 };
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
-use std::io::{BufRead, BufReader, Cursor, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::{path::{Path, PathBuf}};
 use std::{
     collections::HashMap,
     time::{Duration, SystemTime},
+};
+use std::{
+    io::{BufRead, BufReader, Cursor, SeekFrom},
+    str::FromStr,
 };
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
 use tracing::{debug, error, instrument};
@@ -73,10 +76,12 @@ impl S3Backend {
             .to_owned()
     }
 
+    #[instrument(skip(self))]
     async fn metadata_info(&self, path: PathBuf) -> Result<Box<dyn DavMetaData>, FsError> {
         let mut tags = Some(Tagging {
             tag_set: TagSet { tags: vec![] },
         });
+        debug!(path = ?path);
 
         // root dir always exist
         if path.starts_with("/") && path.ends_with("/") {
@@ -105,6 +110,7 @@ impl S3Backend {
                 is_col = true;
             }
             head = Some((resp, prefix));
+            break;
         }
 
         if head.is_none() {
@@ -140,6 +146,13 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
+            let meta = self.metadata_info(path.as_pathbuf()).await;
+            if let Ok(k) = meta {
+                if k.is_dir() {
+                    debug!(method = "open", msg = "tried to open directory", path = ?path);
+                    return Err(FsError::GeneralFailure);
+                }
+            }
             let path = S3Backend::normalize_path(path.as_pathbuf());
             let mut is_new = false;
             let mut buf = vec![];
@@ -207,15 +220,49 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
+        use futures_util::{stream, stream::StreamExt, Future, FutureExt};
         async move {
+            let meta = self.metadata_info(path.as_pathbuf()).await;
+            match meta {
+                Err(e) => {
+                    debug!(msg = "tried to read dir", path = ?path, err = %e);
+                    return Err(FsError::GeneralFailure);
+                }
+                Ok(k) => {
+                    if k.is_file() {
+                        debug!(msg = "can't read_dir on file", path = ?path);
+                        return Err(FsError::Forbidden);
+                    }
+                }
+            };
+
             let path = S3Backend::normalize_path(path.as_pathbuf());
-            let objects = self.client.list(path.to_string(), None).await.unwrap();
+            let objects = self
+                .client
+                .list(path.to_string(), Some("/".into()))
+                .await
+                .unwrap();
 
             let s = objects
                 .into_iter()
-                .map(|e| Box::new(S3DirEntry {}) as Box<dyn DavDirEntry>);
-            let s = futures_util::stream::iter(s);
-            let s = Box::pin(s) as FsStream<Box<dyn DavDirEntry>>;
+                .map(|e| 
+                    stream::iter(e.contents.into_iter().map(|c| async move {
+                        let prefix = format!("{}{}{}", e.prefix, e.delimiter.unwrap_or(String::new()), c.key);
+                        let meta = self.metadata_info(PathBuf::from_str(&prefix).unwrap()).await;
+                        if let Err(e) = meta {
+                            debug!(method = "read_dir", msg = "can't get metadata for path", path = %prefix, err = %e);
+                            return None;
+                        }
+                        Some(Box::new(S3DirEntry{
+                            metadata: meta.unwrap(),
+                            name: prefix.into(),
+                        }) as Box<dyn DavDirEntry>)
+                    }.into_stream())).flatten()
+                );
+
+            let s = stream::iter(s).flatten().filter_map(|f| futures_util::future::ready(f))
+                .collect::<Vec<Box<dyn DavDirEntry>>>().await;
+            let s = Box::pin(stream::iter(s)) as FsStream<Box<dyn DavDirEntry>>;
 
             Ok(s)
         }
@@ -288,6 +335,19 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
+            let meta = self.metadata_info(path.as_pathbuf()).await;
+            match meta {
+                Err(e) => {
+                    debug!(method = "remove file", msg = "file metadata not found", path = ?path);
+                    return Err(FsError::NotFound);
+                }
+                Ok(k) => {
+                    if k.is_dir() {
+                        debug!(method = "remove file", msg = "tried to remove dir");
+                        return Err(FsError::GeneralFailure);
+                    }
+                }
+            };
             let path = S3Backend::normalize_path(path.as_pathbuf());
             let (resp, code) = self.client.delete_object(path.to_string()).await.unwrap();
 
@@ -304,23 +364,31 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
+            let meta = self.metadata_info(path.as_pathbuf()).await;
+            match meta {
+                Err(e) => {
+                    debug!(msg = "remove_dir: directory not found", path = ?path, err = %e);
+                    return Err(FsError::NotFound);
+                }
+                Ok(k) => {
+                    if k.is_file() {
+                        debug!(msg = "remove_dir: tried to remove file", path = ?path);
+                        return Err(FsError::GeneralFailure);
+                    }
+                }
+            };
+
             let path = path.as_pathbuf();
             let prefix = path.to_str().unwrap().to_owned();
             let objects = self.client.list(prefix.clone(), None).await.unwrap();
 
             debug!(method = "remove_dir", prefix = %prefix, list = ?objects);
-            let mut removed = false;
             for obj in objects
                 .into_iter()
                 .filter(|p| p.prefix == prefix)
                 .flat_map(|f| f.contents)
             {
                 self.remove_file(&DavPath::new(&obj.key).unwrap()).await?;
-                removed = true;
-            }
-
-            if !removed {
-                return Err(FsError::NotFound);
             }
 
             Ok(())

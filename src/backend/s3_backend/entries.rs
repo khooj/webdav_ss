@@ -118,24 +118,20 @@ impl DavFile for S3OpenFile {
     }
 }
 
-pub struct S3DirEntry {}
+pub struct S3DirEntry {
+    pub metadata: Box<dyn DavMetaData>,
+    pub name: Vec<u8>,
+}
 
 impl DavDirEntry for S3DirEntry {
     fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
-            Ok(Box::new(S3MetaData::extract_from_tags(
-                0,
-                "/".to_owned(),
-                Tagging {
-                    tag_set: TagSet { tags: vec![] },
-                },
-                false,
-            )) as Box<dyn DavMetaData>)
+            Ok(self.metadata.clone())
         }
         .boxed()
     }
 
     fn name(&self) -> Vec<u8> {
-        "asd".into()
+        self.name.clone()
     }
 }
