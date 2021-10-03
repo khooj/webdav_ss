@@ -1,33 +1,6 @@
-use anyhow::{anyhow, Result};
-use bytes::Buf;
-use futures_util::FutureExt;
-use hyper::client::{Client, HttpConnector};
-use hyper::server::conn::Http;
-use hyper::StatusCode;
-use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
-use s3::BucketConfiguration;
-use s3::{
-    creds::Credentials,
-    region::Region,
-    serde_types::{TagSet, Tagging},
-    Bucket, S3Error,
-};
-use std::io::{BufRead, BufReader, Cursor, SeekFrom};
-use std::path::Path;
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime},
-};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
-use tracing::{debug, error, instrument};
-use webdav_handler::memfs::MemFs;
-use webdav_handler::{
-    davpath::DavPath,
-    fs::{
-        DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsResult, FsStream,
-        OpenOptions, ReadDirMeta,
-    },
-};
+use s3::serde_types::Tagging;
+use std::time::{Duration, SystemTime};
+use webdav_handler::fs::{DavMetaData, FsResult};
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug, Clone, Default)]
@@ -62,7 +35,6 @@ impl S3MetaData {
         metadata.is_dir = is_dir;
 
         for kv in tags.tag_set.tags.into_iter() {
-            let k = kv.key();
             let v = kv.value();
             match &kv.key().as_str() {
                 &"modified" => metadata.modified = S3MetaData::extract_unixtime_or_zero(&v),

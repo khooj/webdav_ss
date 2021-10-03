@@ -1,14 +1,13 @@
-use futures_util::{future::FusedFuture, join, select, FutureExt};
+use futures_util::{select, FutureExt};
 use std::env;
 use testcontainers::{
     clients::Cli,
     images::generic::{GenericImage, Stream, WaitFor},
     Container, Docker, Image, RunArgs,
 };
-use tokio::{process::*, runtime::Runtime};
+use tokio::process::*;
 use webdav_ss::{
     application::Application,
-    backend::s3_backend::S3Backend,
     configuration::{Application as ConfigApplication, Configuration, Filesystem, FilesystemType},
 };
 
@@ -53,7 +52,6 @@ async fn test_s3_backend() {
         })
         .with_args(vec!["server".into(), "/data".into()])
         .with_env_var("MINIO_DOMAIN", "localhost");
-
 
     let docker = Cli::default();
     let cont = docker.run_with_args(image, args);

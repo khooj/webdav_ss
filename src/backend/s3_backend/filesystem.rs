@@ -4,12 +4,7 @@ use super::{
     normalized_path::NormalizedPath,
 };
 use anyhow::{anyhow, Result};
-use bytes::Buf;
 use futures_util::FutureExt;
-use hyper::client::{Client, HttpConnector};
-use hyper::server::conn::Http;
-use hyper::StatusCode;
-use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
 use s3::{
     creds::Credentials,
     region::Region,
@@ -17,25 +12,14 @@ use s3::{
     Bucket, S3Error,
 };
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
-use std::ops::{Deref, DerefMut};
-use std::path::{Path, PathBuf};
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime},
-};
-use std::{
-    io::{BufRead, BufReader, Cursor, SeekFrom},
-    str::FromStr,
-};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
-use tracing::{debug, error, instrument, subscriber::NoSubscriber};
-use tracing_log::NormalizeEvent;
+use std::io::Cursor;
+use tracing::{debug, error, instrument};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
     fs::{
-        DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsResult, FsStream,
-        OpenOptions, ReadDirMeta,
+        DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsStream, OpenOptions,
+        ReadDirMeta,
     },
 };
 
@@ -172,7 +156,7 @@ impl DavFileSystem for S3Backend {
                 .client
                 .head_object(path.as_ref())
                 .await
-                .map_err(|e| FsError::GeneralFailure)?;
+                .map_err(|_| FsError::GeneralFailure)?;
 
             debug!(reason = "open head object", code = code);
             if code != 200 {
@@ -182,7 +166,7 @@ impl DavFileSystem for S3Backend {
                     .client
                     .get_object(path.as_ref())
                     .await
-                    .map_err(|e| FsError::GeneralFailure)?;
+                    .map_err(|_| FsError::GeneralFailure)?;
 
                 if code != 200 {
                     error!(reason = "cant get object", code = code);
@@ -257,7 +241,6 @@ impl DavFileSystem for S3Backend {
             debug!(method = "read_dir", msg = "received entries", entries = ?objects);
             let mut entries = vec![];
             for e in objects {
-                let delim = e.delimiter.unwrap_or(String::new());
                 for c in e.contents {
                     let prefix: NormalizedPath = c.key.into();
                     let meta = self.metadata_info(prefix.clone().into()).await;
@@ -351,7 +334,7 @@ impl DavFileSystem for S3Backend {
             let path: NormalizedPath = path.into();
             let meta = self.metadata_info(path.clone()).await;
             match meta {
-                Err(e) => {
+                Err(_) => {
                     debug!(method = "remove file", msg = "file metadata not found", path = ?path);
                     return Err(FsError::NotFound);
                 }
@@ -362,7 +345,7 @@ impl DavFileSystem for S3Backend {
                     }
                 }
             };
-            let (resp, code) = self.client.delete_object(path.as_ref()).await.unwrap();
+            let (_, code) = self.client.delete_object(path.as_ref()).await.unwrap();
 
             debug!(method = "remove file", code = code);
             if code != 204 {

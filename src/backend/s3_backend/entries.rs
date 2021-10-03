@@ -1,34 +1,12 @@
-use anyhow::{anyhow, Result};
+use super::metadata::S3MetaData;
 use bytes::Buf;
 use futures_util::FutureExt;
-use hyper::client::{Client, HttpConnector};
-use hyper::server::conn::Http;
-use hyper::StatusCode;
-use rusty_s3::{Bucket as RustyBucket, Credentials as RustyCredentials, S3Action};
-use s3::BucketConfiguration;
-use s3::{
-    creds::Credentials,
-    region::Region,
-    serde_types::{TagSet, Tagging},
-    Bucket, S3Error,
-};
-use std::io::{BufRead, BufReader, Cursor, SeekFrom};
-use std::path::Path;
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime},
-};
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, DuplexStream};
-use tracing::{debug, error, instrument};
-use webdav_handler::memfs::MemFs;
-use webdav_handler::{
-    davpath::DavPath,
-    fs::{
-        DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsResult, FsStream,
-        OpenOptions, ReadDirMeta,
-    },
-};
-use super::metadata::S3MetaData;
+use s3::Bucket;
+use std::io::{Cursor, SeekFrom};
+use std::time::SystemTime;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tracing::{debug, instrument};
+use webdav_handler::fs::{DavDirEntry, DavFile, DavMetaData, FsError, FsFuture, OpenOptions};
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
@@ -125,10 +103,7 @@ pub struct S3DirEntry {
 
 impl DavDirEntry for S3DirEntry {
     fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
-        async move {
-            Ok(self.metadata.clone())
-        }
-        .boxed()
+        async move { Ok(self.metadata.clone()) }.boxed()
     }
 
     fn name(&self) -> Vec<u8> {
