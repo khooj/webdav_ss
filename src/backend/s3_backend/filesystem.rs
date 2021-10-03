@@ -1,6 +1,7 @@
 use super::{
     entries::{S3DirEntry, S3OpenFile},
     metadata::S3MetaData,
+    normalized_path::NormalizedPath,
 };
 use anyhow::{anyhow, Result};
 use bytes::Buf;
@@ -42,93 +43,6 @@ use webdav_handler::{
 pub struct S3Backend {
     memfs: Box<MemFs>,
     client: Bucket,
-}
-
-#[derive(Debug, Clone)]
-struct NormalizedPath(String);
-
-impl NormalizedPath {
-    fn as_pathbuf(&self) -> PathBuf {
-        PathBuf::from_str(self).unwrap()
-    }
-
-    fn trim_token(mut token: &str) -> &str {
-        if token.ends_with("/") {
-            token = &token[..token.len()-1];
-        }
-        if token.starts_with("/") {
-            token = &token[1..];
-        }
-        token
-    }
-
-    fn join_file(&self, mut token: &str) -> NormalizedPath {
-        token = NormalizedPath::trim_token(token);
-        if self.0.ends_with("/") {
-            NormalizedPath(format!("{}{}", self.0, token))
-        } else {
-            NormalizedPath(format!("{}/{}", self.0, token))
-        }
-    }
-
-    fn join_dir(&self, mut token: &str) -> NormalizedPath {
-        token = NormalizedPath::trim_token(token);
-        if self.0.ends_with("/") {
-            NormalizedPath(format!("{}{}/", self.0, token))
-        } else {
-            NormalizedPath(format!("{}/{}/", self.0, token))
-        }
-    }
-}
-
-// impl From<String> for NormalizedPath {
-//     fn from(mut t: String) -> Self {
-//         if t.starts_with("/") && t.len() > 1 {
-//             t = String::from_str(&t[1..]).unwrap();
-//         }
-//         NormalizedPath(t)
-//     }
-// }
-
-impl From<&DavPath> for NormalizedPath {
-    fn from(t: &DavPath) -> Self {
-        let col = t.is_collection();
-        let t = t
-            .as_pathbuf()
-            .strip_prefix("/")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_owned();
-        let t = if col { format!("{}/", t) } else { t };
-        NormalizedPath(t)
-    }
-}
-
-impl Into<String> for NormalizedPath {
-    fn into(self) -> String {
-        self.0
-    }
-}
-
-impl Deref for NormalizedPath {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for NormalizedPath {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl AsRef<str> for NormalizedPath {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
 }
 
 impl S3Backend {
@@ -176,7 +90,7 @@ impl S3Backend {
         let mut is_col = false;
         let mut head: Option<(HeadObjectResult, NormalizedPath)> = None;
         // check if it dir or file
-        for prefix in [path.join_file(".dir"), path] {
+        for prefix in [path.join_file(".dir"), path.clone()] {
             debug!(msg = "trying to head object", prefix = ?prefix);
             let (resp, code) = self.client.head_object(prefix.clone()).await.unwrap();
             if code != 200 {
@@ -345,10 +259,10 @@ impl DavFileSystem for S3Backend {
             for e in objects {
                 let delim = e.delimiter.unwrap_or(String::new());
                 for c in e.contents {
-                    let prefix = format!("{}{}{}", e.prefix, &delim, c.key);
+                    let prefix: NormalizedPath = c.key.into();
                     let meta = self.metadata_info(prefix.clone().into()).await;
                     if let Err(e) = meta {
-                        debug!(method = "read_dir", msg = "can't get metadata for path", path = %prefix, err = %e);
+                        debug!(method = "read_dir", msg = "can't get metadata for path", path = ?prefix, err = %e);
                         continue
                     }
                     let entry = Box::new(S3DirEntry{
@@ -380,28 +294,28 @@ impl DavFileSystem for S3Backend {
             if let Ok(m) = meta {
                 if m.is_dir() {
                     debug!(msg = "dir already exist", path = ?path);
-                    return Ok(());
+                    return Err(FsError::Exists);
                 }
             }
 
-            let prefix_dir = format!("{}/.dir", path.as_ref());
-            let pb = path.as_pathbuf();
-            let parent = pb.parent().unwrap();
-            if parent.ends_with("/") && parent.starts_with("/") {
+            let prefix_dir = path.join_file(".dir");
+            if path.ends_with("/") && path.starts_with("/") {
                 let (resp, code) = self
                     .client
                     .put_object(prefix_dir.clone(), &[])
                     .await
                     .unwrap();
 
-                debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = %prefix_dir);
+                debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?path);
                 if code != 200 {
                     return Err(FsError::GeneralFailure);
                 }
                 return Ok(());
             }
 
-            let meta = self.metadata_info(parent.into()).await;
+            // let pb = prefix_dir.as_pathbuf();
+            let parent = prefix_dir.dirs_parent();
+            let meta = self.metadata_info(parent.clone().into()).await;
             match meta {
                 Err(e) => {
                     debug!(msg = "parent folder does not exist", parent = ?parent, err = %e);
@@ -421,7 +335,7 @@ impl DavFileSystem for S3Backend {
                 .await
                 .unwrap();
 
-            debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = %prefix_dir);
+            debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
             if code != 200 {
                 return Err(FsError::GeneralFailure);
             }
