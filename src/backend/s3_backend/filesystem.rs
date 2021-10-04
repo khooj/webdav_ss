@@ -136,6 +136,30 @@ impl S3Backend {
             .collect();
         Ok(result)
     }
+
+    async fn remove_file_impl(&self, path: NormalizedPath, dir_check: bool) -> Result<(), FsError> {
+        let meta = self.metadata_info(path.clone()).await;
+        match meta {
+            Err(_) => {
+                debug!(method = "remove file", msg = "file metadata not found", path = ?path);
+                return Err(FsError::NotFound);
+            }
+            Ok(k) => {
+                if k.is_dir() && dir_check {
+                    debug!(method = "remove file", msg = "tried to remove dir");
+                    return Err(FsError::GeneralFailure);
+                }
+            }
+        };
+        let (_, code) = self.client.delete_object(path.as_ref()).await.unwrap();
+
+        debug!(method = "remove file", code = code);
+        if code != 204 {
+            return Err(FsError::NotFound);
+        }
+
+        Ok(())
+    }
 }
 
 impl DavFileSystem for S3Backend {
@@ -234,7 +258,7 @@ impl DavFileSystem for S3Backend {
             };
 
             let objects = self
-                .list_objects(path)
+                .list_objects(path.clone())
                 .await
                 .unwrap();
 
@@ -248,6 +272,7 @@ impl DavFileSystem for S3Backend {
                         debug!(method = "read_dir", msg = "can't get metadata for path", path = ?prefix, err = %e);
                         continue
                     }
+                    let prefix = prefix.split_prefix(&path);
                     let entry = Box::new(S3DirEntry{
                         metadata: meta.unwrap(),
                         name: prefix.into(),
@@ -332,27 +357,7 @@ impl DavFileSystem for S3Backend {
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let path: NormalizedPath = path.into();
-            let meta = self.metadata_info(path.clone()).await;
-            match meta {
-                Err(_) => {
-                    debug!(method = "remove file", msg = "file metadata not found", path = ?path);
-                    return Err(FsError::NotFound);
-                }
-                Ok(k) => {
-                    if k.is_dir() {
-                        debug!(method = "remove file", msg = "tried to remove dir");
-                        return Err(FsError::GeneralFailure);
-                    }
-                }
-            };
-            let (_, code) = self.client.delete_object(path.as_ref()).await.unwrap();
-
-            debug!(method = "remove file", code = code);
-            if code != 204 {
-                return Err(FsError::NotFound);
-            }
-
-            Ok(())
+            Ok(self.remove_file_impl(path, true).await.unwrap())
         }
         .boxed()
     }
@@ -383,8 +388,12 @@ impl DavFileSystem for S3Backend {
                 .filter(|p| p.prefix == path.as_str())
                 .flat_map(|f| f.contents)
             {
-                self.remove_file(&DavPath::new(&obj.key).unwrap()).await?;
+                self.remove_file_impl(obj.key.clone().into(), true).await?;
             }
+
+            let dir_file = path.join_file(".dir");
+            debug!(method = "remove_dir", msg = "dir file to remove", path = ?dir_file);
+            self.remove_file_impl(dir_file, false).await?;
 
             Ok(())
         }

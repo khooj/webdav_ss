@@ -78,7 +78,7 @@ async fn test_s3_backend() {
     let mut app = Box::pin(Application::build(config).await.run().fuse());
     let cmd = Command::new("litmus")
         .arg(format!("http://localhost:8080"))
-        .env("TESTS", "basic")
+        .env("TESTS", "basic copymove")
         .current_dir(env::current_dir().unwrap())
         .output()
         .fuse();

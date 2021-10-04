@@ -56,6 +56,10 @@ impl NormalizedPath {
             })
     }
 
+    pub fn split_prefix(&self, prefix: &NormalizedPath) -> NormalizedPath {
+        self.0.trim_start_matches(&prefix.0).into()
+    }
+
     pub fn is_collection(&self) -> bool {
         self.0.ends_with("/")
     }
@@ -207,6 +211,23 @@ mod tests {
         assert_eq!(
             p.parent().parent().parent().parent().parent(),
             NormalizedPath("/".into())
+        );
+    }
+
+    #[test]
+    fn split_prefix() {
+        let p: NormalizedPath = "/some/long/directories/file.txt".into();
+        assert_eq!(
+            p.split_prefix(&"/some/long/directories/".into()),
+            NormalizedPath("file.txt".into())
+        );
+        assert_eq!(
+            p.split_prefix(&"/some/long/".into()),
+            NormalizedPath("directories/file.txt".into())
+        );
+        assert_eq!(
+            p.split_prefix(&"/some/".into()),
+            NormalizedPath("long/directories/file.txt".into())
         );
     }
 }
