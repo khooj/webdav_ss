@@ -14,6 +14,7 @@ use s3::{
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use std::io::Cursor;
 use tracing::{debug, error, instrument};
+use tracing_log::NormalizeEvent;
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
@@ -144,12 +145,12 @@ impl S3Backend {
                 if prefix.ends_with(".dir") {
                     prefix = prefix.parent();
                     if prefix == path {
-                        continue
+                        continue;
                     }
                 }
                 let meta = self.metadata_info(prefix.clone().into()).await;
                 if let Err(_) = meta {
-                    continue
+                    continue;
                 }
                 let prefix = prefix.split_prefix(&path);
                 let entry = Box::new(S3DirEntry {
@@ -266,6 +267,41 @@ impl S3Backend {
             .unwrap();
 
         debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
+        if code != 200 {
+            return Err(FsError::GeneralFailure);
+        }
+
+        Ok(())
+    }
+
+    async fn copy_impl(
+        &self,
+        mut from: NormalizedPath,
+        mut to: NormalizedPath,
+    ) -> Result<(), FsError> {
+        let to_meta = self.metadata_info(to.clone()).await;
+
+        if let Err(_) = to_meta {
+            if !from.is_collection() && to.is_collection() {
+                to = to.as_file();
+            }
+        }
+
+        if from.is_collection() && to.is_collection() {
+            from = from.join_file(".dir");
+            to = to.join_file(".dir");
+        }
+
+        if let Err(_) = self.metadata_info(to.parent()).await {
+            self.create_dir_impl(to.parent()).await?;
+        }
+
+        let (_, code) = self
+            .client
+            .copy_object(from.into(), to.into())
+            .await
+            .unwrap();
+
         if code != 200 {
             return Err(FsError::GeneralFailure);
         }
@@ -393,28 +429,33 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
-            // let resp = self
-            //     .client
-            //     .copy_object(rusoto_s3::CopyObjectRequest {
-            //         bucket: self.bucket.clone(),
-            //         copy_source: from.to_string(),
-            //         key: to.to_string(),
-            //         ..rusoto_s3::CopyObjectRequest::default()
-            //     })
-            //     .await
-            //     .unwrap();
+            let from: NormalizedPath = from.into();
+            let to: NormalizedPath = to.into();
 
-            // let resp = self
-            //     .client
-            //     .delete_object(rusoto_s3::DeleteObjectRequest {
-            //         bucket: self.bucket.clone(),
-            //         key: from.to_string(),
-            //         ..rusoto_s3::DeleteObjectRequest::default()
-            //     })
-            //     .await
-            //     .unwrap();
+            if !from.is_collection() && !to.is_collection() {
+                self.copy_impl(from.clone(), to).await?;
+                self.remove_file_impl(from, true).await?;
+                return Ok(());
+            }
 
-            Err(FsError::NotImplemented)
+            let objects = self
+                .read_dir_impl(from.clone().into())
+                .await?
+                .collect::<Vec<Box<dyn DavDirEntry>>>()
+                .await;
+
+            let prefix = from.clone();
+            for obj in objects {
+                if obj.is_dir() {
+                    let from: NormalizedPath =
+                        String::from_utf8_lossy(&obj.name()).to_string().into();
+                    let suffix = from.split_prefix(&prefix);
+                    let to = to.join_file(suffix.as_str());
+                    self.copy_impl(from.clone(), to.clone()).await?;
+                }
+            }
+
+            Ok(())
         }
         .boxed()
     }
@@ -425,36 +466,7 @@ impl DavFileSystem for S3Backend {
             let mut from: NormalizedPath = from.into();
             let mut to: NormalizedPath = to.into();
             debug!(method = "copy", from = ?from, to = ?to);
-
-            // let from_meta = self.metadata_info(from.clone()).await?;
-            let to_meta = self.metadata_info(to.clone()).await;
-
-            if let Err(_) = to_meta {
-                if !from.is_collection() && to.is_collection() {
-                    to = to.as_file();
-                }
-            }
-
-            if from.is_collection() && to.is_collection() {
-                from = from.join_file(".dir");
-                to = to.join_file(".dir");
-            }
-
-            if let Err(_) = self.metadata_info(to.parent()).await {
-                self.create_dir_impl(to.parent()).await?;
-            }
-
-            let (_, code) = self
-                .client
-                .copy_object(from.into(), to.into())
-                .await
-                .unwrap();
-
-            if code != 200 {
-                return Err(FsError::GeneralFailure);
-            }
-
-            Ok(())
+            Ok(self.copy_impl(from, to).await?)
         }
         .boxed()
     }
