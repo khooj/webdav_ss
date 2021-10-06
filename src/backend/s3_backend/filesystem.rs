@@ -59,7 +59,6 @@ impl S3Backend {
         let mut tags = Some(Tagging {
             tag_set: TagSet { tags: vec![] },
         });
-        debug!(path = ?path);
 
         // root dir always exist
         if path.starts_with("/") && path.ends_with("/") {
@@ -75,10 +74,8 @@ impl S3Backend {
         let mut head: Option<(HeadObjectResult, NormalizedPath)> = None;
         // check if it dir or file
         for prefix in [path.join_file(".dir"), path.clone()] {
-            debug!(msg = "trying to head object", prefix = ?prefix);
             let (resp, code) = self.client.head_object(prefix.clone()).await.unwrap();
             if code != 200 {
-                debug!(msg = "head object error, trying next", code = code);
                 continue;
             }
             if prefix.ends_with(".dir") {
@@ -89,7 +86,7 @@ impl S3Backend {
         }
 
         if head.is_none() {
-            debug!(msg = "not found");
+            debug!(msg = "not found", path = ?path);
             return Err(FsError::NotFound);
         }
 
@@ -100,7 +97,6 @@ impl S3Backend {
             tags = t;
 
             if code != 200 {
-                debug!(msg = "tag object empty", code = code);
                 tags = Some(Tagging {
                     tag_set: TagSet { tags: vec![] },
                 });
@@ -138,15 +134,14 @@ impl S3Backend {
     }
 
     async fn remove_file_impl(&self, path: NormalizedPath, dir_check: bool) -> Result<(), FsError> {
+        debug!(method = "remove file", path = ?path, dir_check = dir_check);
         let meta = self.metadata_info(path.clone()).await;
         match meta {
             Err(_) => {
-                debug!(method = "remove file", msg = "file metadata not found", path = ?path);
                 return Err(FsError::NotFound);
             }
             Ok(k) => {
                 if k.is_dir() && dir_check {
-                    debug!(method = "remove file", msg = "tried to remove dir");
                     return Err(FsError::GeneralFailure);
                 }
             }
@@ -156,6 +151,89 @@ impl S3Backend {
         debug!(method = "remove file", code = code);
         if code != 204 {
             return Err(FsError::NotFound);
+        }
+
+        Ok(())
+    }
+
+    async fn remove_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
+        let meta = self.metadata_info(path.clone()).await;
+        match meta {
+            Err(e) => {
+                return Err(FsError::NotFound);
+            }
+            Ok(k) => {
+                if k.is_file() {
+                    return Err(FsError::GeneralFailure);
+                }
+            }
+        };
+
+        let objects = self.list_objects(path.clone()).await.unwrap();
+
+        for obj in objects
+            .into_iter()
+            .filter(|p| p.prefix == path.as_str())
+            .flat_map(|f| f.contents)
+        {
+            self.remove_file_impl(obj.key.clone().into(), true).await?;
+        }
+
+        let dir_file = path.join_file(".dir");
+        self.remove_file_impl(dir_file, false).await?;
+
+        Ok(())
+    }
+
+    async fn create_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
+        let meta = self.metadata_info(path.clone()).await;
+        if let Ok(m) = meta {
+            if m.is_dir() {
+                debug!(msg = "dir already exist", path = ?path);
+                return Err(FsError::Exists);
+            }
+        }
+
+        let prefix_dir = path.join_file(".dir");
+        if path.ends_with("/") && path.starts_with("/") {
+            let (resp, code) = self
+                .client
+                .put_object(prefix_dir.clone(), &[])
+                .await
+                .unwrap();
+
+            debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?path);
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+            return Ok(());
+        }
+
+        // let pb = prefix_dir.as_pathbuf();
+        let parent = prefix_dir.dirs_parent();
+        let meta = self.metadata_info(parent.clone().into()).await;
+        match meta {
+            Err(e) => {
+                debug!(msg = "parent folder does not exist", parent = ?parent, err = %e);
+                return Err(FsError::NotFound);
+            }
+            Ok(k) => {
+                if k.is_file() {
+                    debug!(msg = "tried to create subfolder in file", parent = ?parent);
+                    return Err(FsError::Forbidden);
+                }
+            }
+        };
+
+        let (resp, code) = self
+            .client
+            .put_object(prefix_dir.clone(), &[])
+            .await
+            .unwrap();
+
+        debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
+        if code != 200 {
+            return Err(FsError::GeneralFailure);
         }
 
         Ok(())
@@ -170,7 +248,6 @@ impl DavFileSystem for S3Backend {
             let meta = self.metadata_info(path.clone()).await;
             if let Ok(k) = meta {
                 if k.is_dir() {
-                    debug!(method = "open", msg = "tried to open directory", path = ?path);
                     return Err(FsError::GeneralFailure);
                 }
             }
@@ -182,7 +259,6 @@ impl DavFileSystem for S3Backend {
                 .await
                 .map_err(|_| FsError::GeneralFailure)?;
 
-            debug!(reason = "open head object", code = code);
             if code != 200 {
                 is_new = true;
             } else {
@@ -246,21 +322,16 @@ impl DavFileSystem for S3Backend {
             let meta = self.metadata_info(path.clone()).await;
             match meta {
                 Err(e) => {
-                    debug!(msg = "tried to read dir", path = ?path, err = %e);
                     return Err(FsError::GeneralFailure);
                 }
                 Ok(k) => {
                     if k.is_file() {
-                        debug!(msg = "can't read_dir on file", path = ?path);
                         return Err(FsError::Forbidden);
                     }
                 }
             };
 
-            let objects = self
-                .list_objects(path.clone())
-                .await
-                .unwrap();
+            let objects = self.list_objects(path.clone()).await.unwrap();
 
             debug!(method = "read_dir", msg = "received entries", entries = ?objects);
             let mut entries = vec![];
@@ -269,11 +340,10 @@ impl DavFileSystem for S3Backend {
                     let prefix: NormalizedPath = c.key.into();
                     let meta = self.metadata_info(prefix.clone().into()).await;
                     if let Err(e) = meta {
-                        debug!(method = "read_dir", msg = "can't get metadata for path", path = ?prefix, err = %e);
-                        continue
+                        continue;
                     }
                     let prefix = prefix.split_prefix(&path);
-                    let entry = Box::new(S3DirEntry{
+                    let entry = Box::new(S3DirEntry {
                         metadata: meta.unwrap(),
                         name: prefix.into(),
                     }) as Box<dyn DavDirEntry>;
@@ -298,57 +368,7 @@ impl DavFileSystem for S3Backend {
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let path: NormalizedPath = path.into();
-            let meta = self.metadata_info(path.clone()).await;
-            if let Ok(m) = meta {
-                if m.is_dir() {
-                    debug!(msg = "dir already exist", path = ?path);
-                    return Err(FsError::Exists);
-                }
-            }
-
-            let prefix_dir = path.join_file(".dir");
-            if path.ends_with("/") && path.starts_with("/") {
-                let (resp, code) = self
-                    .client
-                    .put_object(prefix_dir.clone(), &[])
-                    .await
-                    .unwrap();
-
-                debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?path);
-                if code != 200 {
-                    return Err(FsError::GeneralFailure);
-                }
-                return Ok(());
-            }
-
-            // let pb = prefix_dir.as_pathbuf();
-            let parent = prefix_dir.dirs_parent();
-            let meta = self.metadata_info(parent.clone().into()).await;
-            match meta {
-                Err(e) => {
-                    debug!(msg = "parent folder does not exist", parent = ?parent, err = %e);
-                    return Err(FsError::NotFound);
-                },
-                Ok(k) => {
-                    if k.is_file() {
-                        debug!(msg = "tried to create subfolder in file", parent = ?parent);
-                        return Err(FsError::Forbidden);
-                    }
-                }
-            };
-
-            let (resp, code) = self
-                .client
-                .put_object(prefix_dir.clone(), &[])
-                .await
-                .unwrap();
-
-            debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
-            if code != 200 {
-                return Err(FsError::GeneralFailure);
-            }
-
-            Ok(())
+            Ok(self.create_dir_impl(path).await?)
         }
         .boxed()
     }
@@ -366,36 +386,7 @@ impl DavFileSystem for S3Backend {
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let path: NormalizedPath = path.into();
-            let meta = self.metadata_info(path.clone()).await;
-            match meta {
-                Err(e) => {
-                    debug!(msg = "remove_dir: directory not found", path = ?path, err = %e);
-                    return Err(FsError::NotFound);
-                }
-                Ok(k) => {
-                    if k.is_file() {
-                        debug!(msg = "remove_dir: tried to remove file", path = ?path);
-                        return Err(FsError::GeneralFailure);
-                    }
-                }
-            };
-
-            let objects = self.list_objects(path.clone()).await.unwrap();
-
-            debug!(method = "remove_dir", prefix = ?path, list = ?objects);
-            for obj in objects
-                .into_iter()
-                .filter(|p| p.prefix == path.as_str())
-                .flat_map(|f| f.contents)
-            {
-                self.remove_file_impl(obj.key.clone().into(), true).await?;
-            }
-
-            let dir_file = path.join_file(".dir");
-            debug!(method = "remove_dir", msg = "dir file to remove", path = ?dir_file);
-            self.remove_file_impl(dir_file, false).await?;
-
-            Ok(())
+            Ok(self.remove_dir_impl(path).await?)
         }
         .boxed()
     }
@@ -432,18 +423,39 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
-            // let resp = self
-            //     .client
-            //     .copy_object(rusoto_s3::CopyObjectRequest {
-            //         bucket: self.bucket.clone(),
-            //         copy_source: from.to_string(),
-            //         key: to.to_string(),
-            //         ..rusoto_s3::CopyObjectRequest::default()
-            //     })
-            //     .await
-            //     .unwrap();
+            let mut from: NormalizedPath = from.into();
+            let mut to: NormalizedPath = to.into();
+            debug!(method = "copy", from = ?from, to = ?to);
 
-            Err(FsError::NotImplemented)
+            // let from_meta = self.metadata_info(from.clone()).await?;
+            let to_meta = self.metadata_info(to.clone()).await;
+
+            if let Err(_) = to_meta {
+                if !from.is_collection() && to.is_collection() {
+                    to = to.as_file();
+                }
+            }
+
+            if from.is_collection() && to.is_collection() {
+                from = from.join_file(".dir");
+                to = to.join_file(".dir");
+            }
+
+            if let Err(_) = self.metadata_info(to.parent()).await {
+                self.create_dir_impl(to.parent()).await?;
+            }
+
+            let (_, code) = self
+                .client
+                .copy_object(from.into(), to.into())
+                .await
+                .unwrap();
+
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+
+            Ok(())
         }
         .boxed()
     }

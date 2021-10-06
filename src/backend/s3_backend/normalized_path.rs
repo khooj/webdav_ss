@@ -71,6 +71,14 @@ impl NormalizedPath {
             self.parent().parent()
         }
     }
+
+    pub fn as_file(&self) -> NormalizedPath {
+        if self.is_collection() {
+            self.0.trim_end_matches("/").into()
+        } else {
+            self.clone()
+        }
+    }
 }
 
 /// When creating from string we cant preserve ending slash for collections
@@ -211,6 +219,10 @@ mod tests {
         assert_eq!(
             p.parent().parent().parent().parent().parent(),
             NormalizedPath("/".into())
+        );
+        assert_eq!(
+            NormalizedPath("some/long/directories/".into()).parent(),
+            NormalizedPath("some/long/".into())
         );
     }
 
