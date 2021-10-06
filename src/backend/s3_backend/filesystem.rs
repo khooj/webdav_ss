@@ -4,7 +4,7 @@ use super::{
     normalized_path::NormalizedPath,
 };
 use anyhow::{anyhow, Result};
-use futures_util::FutureExt;
+use futures_util::{FutureExt, StreamExt};
 use s3::{
     creds::Credentials,
     region::Region,
@@ -112,25 +112,58 @@ impl S3Backend {
         )) as Box<dyn DavMetaData>)
     }
 
-    #[instrument(skip(self))]
-    async fn list_objects(&self, path: NormalizedPath) -> Result<Vec<ListBucketResult>, S3Error> {
-        let mut prefix = path;
-        if prefix.len() > 1 && !prefix.ends_with("/") {
-            prefix.push('/');
+    async fn read_dir_impl(
+        &self,
+        mut path: NormalizedPath,
+    ) -> Result<FsStream<Box<dyn DavDirEntry>>, FsError> {
+        use futures_util::stream;
+
+        let meta = self.metadata_info(path.clone()).await;
+        match meta {
+            Err(e) => {
+                return Err(FsError::GeneralFailure);
+            }
+            Ok(k) => {
+                if k.is_file() {
+                    return Err(FsError::Forbidden);
+                }
+            }
+        };
+
+        let objects = self
+            .client
+            .list(path.clone().into(), Some("".into()))
+            .await
+            .unwrap();
+
+        debug!(method = "read_dir", msg = "received entries", entries = ?objects);
+        let mut entries = vec![];
+        for e in objects {
+            for c in e.contents {
+                let mut prefix: NormalizedPath = c.key.into();
+                if prefix.ends_with(".dir") {
+                    prefix = prefix.parent();
+                    if prefix == path {
+                        continue
+                    }
+                }
+                let meta = self.metadata_info(prefix.clone().into()).await;
+                if let Err(_) = meta {
+                    continue
+                }
+                let prefix = prefix.split_prefix(&path);
+                let entry = Box::new(S3DirEntry {
+                    metadata: meta.unwrap(),
+                    name: prefix.into(),
+                }) as Box<dyn DavDirEntry>;
+                entries.push(entry);
+            }
         }
-        let result = self.client.list(prefix.into(), Some("".into())).await?;
-        let result = result
-            .into_iter()
-            .map(|mut f| {
-                f.contents = f
-                    .contents
-                    .into_iter()
-                    .filter(|k| !k.key.ends_with(".dir"))
-                    .collect();
-                f
-            })
-            .collect();
-        Ok(result)
+
+        let s = stream::iter(entries);
+        let s = Box::pin(s) as FsStream<Box<dyn DavDirEntry>>;
+
+        Ok(s)
     }
 
     async fn remove_file_impl(&self, path: NormalizedPath, dir_check: bool) -> Result<(), FsError> {
@@ -169,15 +202,16 @@ impl S3Backend {
             }
         };
 
-        let objects = self.list_objects(path.clone()).await.unwrap();
+        // let objects = self.read_dir_impl(path.clone()).await?;
+        // let objects = objects.collect::<Vec<Box<dyn DavDirEntry>>>().await;
 
-        for obj in objects
-            .into_iter()
-            .filter(|p| p.prefix == path.as_str())
-            .flat_map(|f| f.contents)
-        {
-            self.remove_file_impl(obj.key.clone().into(), true).await?;
-        }
+        // for obj in objects
+        //     .into_iter()
+        //     .filter(|p| p.name().as_str() == path.as_str())
+        //     .flat_map(|f| f.contents)
+        // {
+        //     self.remove_file_impl(obj.key.clone().into(), true).await?;
+        // }
 
         let dir_file = path.join_file(".dir");
         self.remove_file_impl(dir_file, false).await?;
@@ -316,45 +350,10 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
-        use futures_util::{stream, FutureExt};
+        use futures_util::FutureExt;
         async move {
             let path: NormalizedPath = path.into();
-            let meta = self.metadata_info(path.clone()).await;
-            match meta {
-                Err(e) => {
-                    return Err(FsError::GeneralFailure);
-                }
-                Ok(k) => {
-                    if k.is_file() {
-                        return Err(FsError::Forbidden);
-                    }
-                }
-            };
-
-            let objects = self.list_objects(path.clone()).await.unwrap();
-
-            debug!(method = "read_dir", msg = "received entries", entries = ?objects);
-            let mut entries = vec![];
-            for e in objects {
-                for c in e.contents {
-                    let prefix: NormalizedPath = c.key.into();
-                    let meta = self.metadata_info(prefix.clone().into()).await;
-                    if let Err(e) = meta {
-                        continue;
-                    }
-                    let prefix = prefix.split_prefix(&path);
-                    let entry = Box::new(S3DirEntry {
-                        metadata: meta.unwrap(),
-                        name: prefix.into(),
-                    }) as Box<dyn DavDirEntry>;
-                    entries.push(entry);
-                }
-            }
-
-            let s = stream::iter(entries);
-            let s = Box::pin(s) as FsStream<Box<dyn DavDirEntry>>;
-
-            Ok(s)
+            Ok(self.read_dir_impl(path).await?)
         }
         .boxed()
     }
