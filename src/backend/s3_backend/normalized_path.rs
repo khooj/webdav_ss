@@ -79,6 +79,14 @@ impl NormalizedPath {
             self.clone()
         }
     }
+
+    pub fn as_dir(&self) -> NormalizedPath {
+        if !self.is_collection() {
+            format!("{}/", self.0).into()
+        } else {
+            self.clone()
+        }
+    }
 }
 
 /// When creating from string we cant preserve ending slash for collections

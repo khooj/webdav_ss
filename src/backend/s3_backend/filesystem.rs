@@ -113,6 +113,7 @@ impl S3Backend {
         )) as Box<dyn DavMetaData>)
     }
 
+    #[instrument(err, skip(self))]
     async fn read_dir_impl(
         &self,
         mut path: NormalizedPath,
@@ -167,6 +168,7 @@ impl S3Backend {
         Ok(s)
     }
 
+    #[instrument(err, skip(self))]
     async fn remove_file_impl(&self, path: NormalizedPath, dir_check: bool) -> Result<(), FsError> {
         debug!(method = "remove file", path = ?path, dir_check = dir_check);
         let meta = self.metadata_info(path.clone()).await;
@@ -190,6 +192,7 @@ impl S3Backend {
         Ok(())
     }
 
+    #[instrument(err, skip(self))]
     async fn remove_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
         let meta = self.metadata_info(path.clone()).await;
         match meta {
@@ -220,6 +223,7 @@ impl S3Backend {
         Ok(())
     }
 
+    #[instrument(err, skip(self))]
     async fn create_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
         let meta = self.metadata_info(path.clone()).await;
         if let Ok(m) = meta {
@@ -274,6 +278,7 @@ impl S3Backend {
         Ok(())
     }
 
+    #[instrument(err, skip(self))]
     async fn copy_impl(
         &self,
         mut from: NormalizedPath,
@@ -304,6 +309,75 @@ impl S3Backend {
 
         if code != 200 {
             return Err(FsError::GeneralFailure);
+        }
+
+        Ok(())
+    }
+
+    #[instrument(err, skip(self))]
+    async fn rename_impl(
+        &self,
+        from: NormalizedPath,
+        mut to: NormalizedPath,
+    ) -> Result<(), FsError> {
+        // if from.is_collection() && !to.is_collection() {
+        //     self.remove_file_impl(to.clone(), true).await?;
+        //     self.create_dir_impl(to.clone()).await?;
+        //     to = to.as_dir();
+        // }
+        if !from.is_collection() && to.is_collection() {
+            // TODO: remove files recursive
+            if let Ok(_) = self.metadata_info(to.clone()).await {
+                self.remove_dir_impl(to.clone()).await?;
+            }
+            to = to.as_file();
+        }
+
+        if !from.is_collection() && !to.is_collection() {
+            self.copy_impl(from.clone(), to).await?;
+            self.remove_file_impl(from, true).await?;
+            return Ok(());
+        }
+
+        let mut dirs = vec![from.clone()];
+        let mut paths = vec![];
+        let mut dirs_to_remove = vec![];
+        let mut dirs_to_create = vec![];
+
+        while !dirs.is_empty() {
+            let path = dirs.pop().unwrap();
+            dirs_to_remove.push(path.clone());
+
+            let objects = self
+                .read_dir_impl(path.clone().into())
+                .await?
+                .collect::<Vec<_>>()
+                .await;
+
+            for obj in &objects {
+                let suffix: NormalizedPath =
+                    String::from_utf8_lossy(&obj.name()).to_string().into();
+                if obj.is_dir().await? {
+                    dirs.push(path.join_dir(&suffix));
+                    dirs_to_create.push(to.join_dir(&suffix));
+                } else {
+                    let to = to.join_file(&suffix);
+                    paths.push((path.join_file(&suffix), to))
+                }
+            }
+        }
+
+        for dir in dirs_to_create {
+            self.create_dir_impl(dir).await?;
+        }
+
+        for (from, to) in paths {
+            self.copy_impl(from.clone(), to).await?;
+            self.remove_file_impl(from, true).await?;
+        }
+
+        for dir in dirs_to_remove {
+            self.remove_dir_impl(dir).await?;
         }
 
         Ok(())
@@ -431,31 +505,7 @@ impl DavFileSystem for S3Backend {
         async move {
             let from: NormalizedPath = from.into();
             let to: NormalizedPath = to.into();
-
-            if !from.is_collection() && !to.is_collection() {
-                self.copy_impl(from.clone(), to).await?;
-                self.remove_file_impl(from, true).await?;
-                return Ok(());
-            }
-
-            let objects = self
-                .read_dir_impl(from.clone().into())
-                .await?
-                .collect::<Vec<Box<dyn DavDirEntry>>>()
-                .await;
-
-            let prefix = from.clone();
-            for obj in objects {
-                if obj.is_dir() {
-                    let from: NormalizedPath =
-                        String::from_utf8_lossy(&obj.name()).to_string().into();
-                    let suffix = from.split_prefix(&prefix);
-                    let to = to.join_file(suffix.as_str());
-                    self.copy_impl(from.clone(), to.clone()).await?;
-                }
-            }
-
-            Ok(())
+            Ok(self.rename_impl(from, to).await?)
         }
         .boxed()
     }
