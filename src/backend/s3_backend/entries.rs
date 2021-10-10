@@ -51,7 +51,6 @@ impl DavFile for S3OpenFile {
             let mut b = Vec::with_capacity(count);
             b.resize(count, 0);
             self.cursor.read(b.as_mut()).await.unwrap();
-            self.metadata.accessed = SystemTime::now();
             Ok(bytes::Bytes::from(b))
         }
         .boxed()

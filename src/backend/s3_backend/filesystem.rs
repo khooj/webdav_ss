@@ -5,6 +5,7 @@ use super::{
 };
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
+use hyper::StatusCode;
 use s3::{
     creds::Credentials,
     region::Region,
@@ -14,7 +15,6 @@ use s3::{
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use std::io::Cursor;
 use tracing::{debug, error, instrument};
-use tracing_log::NormalizeEvent;
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
@@ -56,7 +56,7 @@ impl S3Backend {
     }
 
     #[instrument(skip(self))]
-    async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<dyn DavMetaData>, FsError> {
+    async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<S3MetaData>, FsError> {
         let mut tags = Some(Tagging {
             tag_set: TagSet { tags: vec![] },
         });
@@ -68,7 +68,7 @@ impl S3Backend {
                 "".into(),
                 tags.unwrap(),
                 true,
-            )) as Box<dyn DavMetaData>);
+            )));
         }
 
         let mut is_col = false;
@@ -110,7 +110,7 @@ impl S3Backend {
             path.into(),
             tags.unwrap(),
             is_col,
-        )) as Box<dyn DavMetaData>)
+        )))
     }
 
     #[instrument(err, skip(self))]
@@ -475,7 +475,7 @@ impl DavFileSystem for S3Backend {
 
     #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
-        async move { Ok(self.metadata_info(path.into()).await?) }.boxed()
+        async move { Ok(self.metadata_info(path.into()).await? as Box<dyn DavMetaData>) }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -518,8 +518,8 @@ impl DavFileSystem for S3Backend {
     #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
-            let mut from: NormalizedPath = from.into();
-            let mut to: NormalizedPath = to.into();
+            let from: NormalizedPath = from.into();
+            let to: NormalizedPath = to.into();
             debug!(method = "copy", from = ?from, to = ?to);
             Ok(self.copy_impl(from, to).await?)
         }
@@ -531,7 +531,7 @@ impl DavFileSystem for S3Backend {
         &'a self,
         path: &'a DavPath,
     ) -> std::pin::Pin<Box<dyn futures_util::Future<Output = bool> + Send + 'a>> {
-        async move { false }.boxed()
+        async move { true }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -540,7 +540,35 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
-        async move { Err(FsError::NotImplemented) }.boxed()
+        async move {
+            let path: NormalizedPath = path.into();
+            let mut metadata = self.metadata_info(path.clone()).await?;
+            let mut result = vec![];
+
+            for (set, p) in patch {
+                let pp = p.clone();
+                let status = if set {
+                    metadata.save_davprop(p);
+                    StatusCode::OK
+                } else {
+                    metadata.remove_davprop(p);
+                    StatusCode::OK
+                };
+                result.push((status, pp));
+            }
+
+            let tags = metadata.as_metadata();
+            let (_, code) = match self.client.put_object_tagging(&path, &tags[..]).await {
+                Err(_) => return Err(FsError::GeneralFailure),
+                Ok(k) => k,
+            };
+            if code != 200 {
+                return Err(FsError::GeneralFailure);
+            }
+
+            Ok(result)
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -549,7 +577,12 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
-        async move { Err(FsError::NotImplemented) }.boxed()
+        async move {
+            let path: NormalizedPath = path.into();
+            let metadata = self.metadata_info(path).await?;
+            Ok(metadata.get_prop(prop).unwrap_or(vec![]))
+        }
+        .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -558,6 +591,10 @@ impl DavFileSystem for S3Backend {
         path: &'a DavPath,
         do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
-        async move { Err(FsError::NotImplemented) }.boxed()
+        async move { 
+            let path: NormalizedPath = path.into();
+            let metadata = self.metadata_info(path).await?;
+            Ok(metadata.as_davprops())
+        }.boxed()
     }
 }

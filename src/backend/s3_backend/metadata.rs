@@ -1,6 +1,9 @@
 use s3::serde_types::Tagging;
-use std::time::{Duration, SystemTime};
-use webdav_handler::fs::{DavMetaData, FsResult};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
+use webdav_handler::fs::{DavMetaData, DavProp, FsResult};
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug, Clone, Default)]
@@ -10,13 +13,10 @@ pub struct S3MetaData {
     #[derivative(Default(value = "SystemTime::now()"))]
     pub modified: SystemTime,
     #[derivative(Default(value = "SystemTime::now()"))]
-    pub accessed: SystemTime,
-    #[derivative(Default(value = "SystemTime::now()"))]
     pub created: SystemTime,
-    #[derivative(Default(value = "SystemTime::now()"))]
-    pub status_changed: SystemTime,
     pub executable: bool,
     pub is_dir: bool,
+    pub props: HashMap<String, String>,
 }
 
 impl S3MetaData {
@@ -38,12 +38,10 @@ impl S3MetaData {
             let v = kv.value();
             match &kv.key().as_str() {
                 &"modified" => metadata.modified = S3MetaData::extract_unixtime_or_zero(&v),
-                &"accessed" => metadata.accessed = S3MetaData::extract_unixtime_or_zero(&v),
                 &"created" => metadata.created = S3MetaData::extract_unixtime_or_zero(&v),
-                &"status_changed" => {
-                    metadata.status_changed = S3MetaData::extract_unixtime_or_zero(&v)
+                prop => {
+                    let _ = metadata.props.entry(prop.to_string()).or_insert(v);
                 }
-                _ => {}
             }
         }
 
@@ -60,15 +58,44 @@ impl S3MetaData {
 
     pub fn as_metadata(&self) -> Vec<(String, String)> {
         let modified = S3MetaData::as_unixtime(self.modified);
-        let accessed = S3MetaData::as_unixtime(self.accessed);
         let created = S3MetaData::as_unixtime(self.created);
-        let status_changed = S3MetaData::as_unixtime(self.status_changed);
-        vec![
+        let mut result = vec![
             ("modified".into(), modified),
-            ("accessed".into(), accessed),
             ("created".into(), created),
-            ("status_changed".into(), status_changed),
-        ]
+        ];
+        for (k, v) in &self.props {
+            result.push((k.clone(), v.clone()));
+        }
+        result
+    }
+
+    pub fn as_davprops(&self) -> Vec<DavProp> {
+        let mut result = vec![];
+        for (k, v) in &self.props {
+            result.push(DavProp {
+                name: k.clone(),
+                namespace: None,
+                prefix: None,
+                xml: Some(v.clone().into()),
+            });
+        }
+        result
+    }
+
+    pub fn save_davprop(&mut self, prop: DavProp) {
+        let p = self.props.entry(prop.name).or_insert("".into());
+        if let Some(v) = prop.xml {
+            *p = String::from_utf8_lossy(&v[..]).to_string();
+        }
+    }
+
+    pub fn remove_davprop(&mut self, prop: DavProp) {
+        let _ = self.props.remove_entry(&prop.name);
+    }
+
+    pub fn get_prop(&self, prop: DavProp) -> Option<Vec<u8>> {
+        let result = self.props.get(&prop.name);
+        result.map(|f| f.clone().into_bytes())
     }
 }
 
@@ -85,16 +112,8 @@ impl DavMetaData for S3MetaData {
         self.is_dir
     }
 
-    fn accessed(&self) -> FsResult<SystemTime> {
-        Ok(self.accessed)
-    }
-
     fn created(&self) -> FsResult<SystemTime> {
         Ok(self.created)
-    }
-
-    fn status_changed(&self) -> FsResult<SystemTime> {
-        Ok(self.status_changed)
     }
 
     fn executable(&self) -> FsResult<bool> {
