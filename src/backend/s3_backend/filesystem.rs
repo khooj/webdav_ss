@@ -531,7 +531,7 @@ impl DavFileSystem for S3Backend {
         &'a self,
         path: &'a DavPath,
     ) -> std::pin::Pin<Box<dyn futures_util::Future<Output = bool> + Send + 'a>> {
-        async move { true }.boxed()
+        async move { false }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -541,10 +541,12 @@ impl DavFileSystem for S3Backend {
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
         async move {
+            return Err(FsError::NotImplemented);
             let path: NormalizedPath = path.into();
             let mut metadata = self.metadata_info(path.clone()).await?;
             let mut result = vec![];
 
+            debug!(prop = ?patch);
             for (set, p) in patch {
                 let pp = p.clone();
                 let status = if set {
@@ -578,6 +580,7 @@ impl DavFileSystem for S3Backend {
         prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
         async move {
+            return Err(FsError::NotImplemented);
             let path: NormalizedPath = path.into();
             let metadata = self.metadata_info(path).await?;
             Ok(metadata.get_prop(prop).unwrap_or(vec![]))
@@ -592,9 +595,13 @@ impl DavFileSystem for S3Backend {
         do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
         async move { 
+            return Err(FsError::NotImplemented);
             let path: NormalizedPath = path.into();
             let metadata = self.metadata_info(path).await?;
-            Ok(metadata.as_davprops())
+            if let Ok(k) = metadata.as_davprops() {
+                return Ok(k);
+            }
+            Err(FsError::GeneralFailure) 
         }.boxed()
     }
 }

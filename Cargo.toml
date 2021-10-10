@@ -22,7 +22,8 @@ derivative = "2.2.0"
 tokio-util = { version = "0.6", features = ["io"] }
 futures-core = "0.3"
 tokio-stream = "0.1"
-rusty-s3 = { version = "0.1.2" }
+bincode = "1.3"
+base64 = "0.13"
 
 [dev-dependencies]
 testcontainers = "0.12"

@@ -1,0 +1,22 @@
+diff --git a/src/props.c b/src/props.c
+index 34e6b58..e2ffdc7 100644
+--- a/src/props.c
++++ b/src/props.c
+@@ -224,7 +224,7 @@ static int propinit(void)
+     return OK;
+ }
+ 
+-#define NP (10)
++#define NP (8)
+ 
+ static ne_proppatch_operation pops[NP + 1];
+ static ne_propname propnames[NP + 1];
+@@ -573,7 +573,7 @@ static int propmanyns(void)
+ {
+     int n;
+ 
+-    numprops = 10;
++    numprops = 8;
+ 
+     for (n = 0; n < numprops; n++) {
+ 	propnames[n].nspace = manyns[n];
