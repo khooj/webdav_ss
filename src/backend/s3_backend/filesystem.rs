@@ -339,10 +339,15 @@ impl S3Backend {
             return Ok(());
         }
 
+        if from.is_collection() && !to.is_collection() {
+            let _ = self.remove_file_impl(to.clone(), true).await;
+            to = to.as_dir();
+        }
+
         let mut dirs = vec![from.clone()];
         let mut paths = vec![];
         let mut dirs_to_remove = vec![];
-        let mut dirs_to_create = vec![];
+        let mut dirs_to_create = vec![to.clone()];
 
         while !dirs.is_empty() {
             let path = dirs.pop().unwrap();
