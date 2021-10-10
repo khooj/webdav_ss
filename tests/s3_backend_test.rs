@@ -41,7 +41,7 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
 
 #[tokio::test]
 async fn test_s3_backend() {
-    env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
+    // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));
@@ -78,7 +78,7 @@ async fn test_s3_backend() {
     let mut app = Box::pin(Application::build(config).await.run().fuse());
     let cmd = Command::new("litmus")
         .arg(format!("http://localhost:8080"))
-        .env("TESTS", "basic copymove")
+        .env("TESTS", "basic copymove http")
         .current_dir(env::current_dir().unwrap())
         .output()
         .fuse();
