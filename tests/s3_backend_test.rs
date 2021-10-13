@@ -63,13 +63,13 @@ async fn test_s3_backend() {
             host: "127.0.0.1".into(),
             port: 8080,
         },
-        filesystems: vec![Filesystem {
+        filesystems: vec![FilesystemType {
             mount_path: "/".into(),
-            region: Some("us-east-1".into()),
-            path: None,
-            bucket: Some("test".into()),
-            typ: FilesystemType::S3,
-            url: Some(format!("http://localhost:{}", 9000)),
+            fs: Filesystem::S3 {
+                region: "us-east-1".into(),
+                bucket: "test".into(),
+                url: format!("http://localhost:{}", 9000),
+            },
         }],
     };
 

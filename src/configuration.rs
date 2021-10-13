@@ -24,28 +24,31 @@ pub struct Application {
     pub port: u16,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
-pub enum FilesystemType {
-    FS,
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum Filesystem {
+    FS {
+        path: String,
+    },
     Mem,
-    S3,
+    S3 {
+        bucket: String,
+        region: String,
+        url: String,
+    },
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Filesystem {
-    pub path: Option<String>,
+#[derive(Debug, Deserialize, Clone)]
+pub struct FilesystemType {
+    #[serde(flatten)]
+    pub fs: Filesystem,
     pub mount_path: String,
-    #[serde(rename = "type")]
-    pub typ: FilesystemType,
-    pub url: Option<String>,
-    pub bucket: Option<String>,
-    pub region: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Configuration {
     pub app: Application,
-    pub filesystems: Vec<Filesystem>,
+    pub filesystems: Vec<FilesystemType>,
 }
 
 impl Configuration {

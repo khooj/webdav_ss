@@ -1,7 +1,7 @@
 use super::{
     aggregate::AggregateBuilder,
     backend::s3_backend::S3Backend,
-    configuration::{Configuration, Filesystem, FilesystemType},
+    configuration::{Configuration, Filesystem},
     repository::MemoryRepository,
 };
 use hyper::{
@@ -14,24 +14,22 @@ use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
 
-async fn get_backend_by_type(typ: FilesystemType, fs: &Filesystem) -> Box<dyn DavFileSystem> {
-    match typ {
-        FilesystemType::FS => {
+async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
+    match fs {
+        Filesystem::FS { path } => {
             // TODO: move dir check
-            let p = fs.path.as_ref().unwrap();
-            if let Err(_) = std::fs::metadata(p) {
-                std::fs::create_dir_all(p).unwrap();
+            if let Err(_) = std::fs::metadata(&path) {
+                std::fs::create_dir_all(&path).unwrap();
             }
-            LocalFs::new(fs.path.as_ref().unwrap(), false, false, false)
+            LocalFs::new(&path, false, false, false)
         }
-        FilesystemType::Mem => MemFs::new(),
-        FilesystemType::S3 => S3Backend::new(
-            fs.url.as_ref().unwrap(),
-            fs.region.as_ref().unwrap(),
-            fs.bucket.as_ref().unwrap(),
-        )
-        .await
-        .unwrap(),
+        Filesystem::Mem => MemFs::new(),
+        Filesystem::S3 {
+            url,
+            region,
+            bucket,
+            ..
+        } => S3Backend::new(&url, &region, &bucket).await.unwrap(),
     }
 }
 
@@ -48,7 +46,7 @@ impl Application {
 
         for fss in config.filesystems {
             fs = fs
-                .add_route((&fss.mount_path, get_backend_by_type(fss.typ, &fss).await))
+                .add_route((&fss.mount_path, get_backend_by_type(fss.fs).await))
                 .unwrap();
         }
 

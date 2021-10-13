@@ -3,7 +3,12 @@ app:
   port: 8080
 filesystems:
   - mount_path: /
-    type: S3
+    type: s3
     region: us-east-1
     url: http://localhost:9000
     bucket: test
+  - mount_path: /fs
+    type: fs
+    path: /tmp/fs
+  - mount_path: /mem
+    type: mem
