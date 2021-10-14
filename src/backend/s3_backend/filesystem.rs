@@ -9,12 +9,12 @@ use hyper::StatusCode;
 use s3::{
     creds::Credentials,
     region::Region,
-    serde_types::{ListBucketResult, TagSet, Tagging},
-    Bucket, S3Error,
+    serde_types::{TagSet, Tagging},
+    Bucket,
 };
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use std::io::Cursor;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, instrument, span, Instrument, Level};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
@@ -31,6 +31,7 @@ pub struct S3Backend {
 }
 
 impl S3Backend {
+    #[instrument(level = "info", err)]
     pub async fn new(url: &str, region: &str, bucket: &str) -> Result<Box<dyn DavFileSystem>> {
         let url = url.to_owned();
         let region = Region::Custom {
@@ -55,7 +56,7 @@ impl S3Backend {
         }) as Box<dyn DavFileSystem>)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(level = "debug", skip(self), err)]
     async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<S3MetaData>, FsError> {
         let mut tags = Some(Tagging {
             tag_set: TagSet { tags: vec![] },
@@ -113,16 +114,16 @@ impl S3Backend {
         )))
     }
 
-    #[instrument(err, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn read_dir_impl(
         &self,
-        mut path: NormalizedPath,
+        path: NormalizedPath,
     ) -> Result<FsStream<Box<dyn DavDirEntry>>, FsError> {
         use futures_util::stream;
 
         let meta = self.metadata_info(path.clone()).await;
         match meta {
-            Err(e) => {
+            Err(_) => {
                 return Err(FsError::GeneralFailure);
             }
             Ok(k) => {
@@ -138,7 +139,7 @@ impl S3Backend {
             .await
             .unwrap();
 
-        debug!(method = "read_dir", msg = "received entries", entries = ?objects);
+        debug!(msg = "received entries", entries = ?objects);
         let mut entries = vec![];
         for e in objects {
             for c in e.contents {
@@ -168,9 +169,9 @@ impl S3Backend {
         Ok(s)
     }
 
-    #[instrument(err, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn remove_file_impl(&self, path: NormalizedPath, dir_check: bool) -> Result<(), FsError> {
-        debug!(method = "remove file", path = ?path, dir_check = dir_check);
+        debug!(path = ?path, dir_check = dir_check);
         let meta = self.metadata_info(path.clone()).await;
         match meta {
             Err(_) => {
@@ -184,7 +185,7 @@ impl S3Backend {
         };
         let (_, code) = self.client.delete_object(path.as_ref()).await.unwrap();
 
-        debug!(method = "remove file", code = code);
+        debug!(code = code);
         if code != 204 {
             return Err(FsError::NotFound);
         }
@@ -192,11 +193,11 @@ impl S3Backend {
         Ok(())
     }
 
-    #[instrument(err, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn remove_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
         let meta = self.metadata_info(path.clone()).await;
         match meta {
-            Err(e) => {
+            Err(_) => {
                 return Err(FsError::NotFound);
             }
             Ok(k) => {
@@ -206,24 +207,13 @@ impl S3Backend {
             }
         };
 
-        // let objects = self.read_dir_impl(path.clone()).await?;
-        // let objects = objects.collect::<Vec<Box<dyn DavDirEntry>>>().await;
-
-        // for obj in objects
-        //     .into_iter()
-        //     .filter(|p| p.name().as_str() == path.as_str())
-        //     .flat_map(|f| f.contents)
-        // {
-        //     self.remove_file_impl(obj.key.clone().into(), true).await?;
-        // }
-
         let dir_file = path.join_file(".dir");
         self.remove_file_impl(dir_file, false).await?;
 
         Ok(())
     }
 
-    #[instrument(err, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn create_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
         let meta = self.metadata_info(path.clone()).await;
         if let Ok(m) = meta {
@@ -241,7 +231,7 @@ impl S3Backend {
                 .await
                 .unwrap();
 
-            debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?path);
+            debug!(msg = "creating stub dir file", resp = ?resp, code = code, prefix = ?path);
             if code != 200 {
                 return Err(FsError::GeneralFailure);
             }
@@ -270,7 +260,7 @@ impl S3Backend {
             .await
             .unwrap();
 
-        debug!(reason = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
+        debug!(msg = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
         if code != 200 {
             return Err(FsError::GeneralFailure);
         }
@@ -278,7 +268,7 @@ impl S3Backend {
         Ok(())
     }
 
-    #[instrument(err, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn copy_impl(
         &self,
         mut from: NormalizedPath,
@@ -314,17 +304,12 @@ impl S3Backend {
         Ok(())
     }
 
-    #[instrument(err, skip(self))]
+    #[instrument(level = "debug", err, skip(self))]
     async fn rename_impl(
         &self,
         from: NormalizedPath,
         mut to: NormalizedPath,
     ) -> Result<(), FsError> {
-        // if from.is_collection() && !to.is_collection() {
-        //     self.remove_file_impl(to.clone(), true).await?;
-        //     self.create_dir_impl(to.clone()).await?;
-        //     to = to.as_dir();
-        // }
         if !from.is_collection() && to.is_collection() {
             // TODO: remove files recursive
             if let Ok(_) = self.metadata_info(to.clone()).await {
@@ -390,8 +375,8 @@ impl S3Backend {
 }
 
 impl DavFileSystem for S3Backend {
-    #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
+        let span = span!(Level::INFO, "S3Backend::open");
         async move {
             let path: NormalizedPath = path.into();
             let meta = self.metadata_info(path.clone()).await;
@@ -418,11 +403,11 @@ impl DavFileSystem for S3Backend {
                     .map_err(|_| FsError::GeneralFailure)?;
 
                 if code != 200 {
-                    error!(reason = "cant get object", code = code);
+                    error!(msg = "cant get object", code = code);
                     return Err(FsError::GeneralFailure);
                 }
 
-                debug!(reason = "received data", length = obj.len());
+                debug!(msg = "received data", length = obj.len());
                 buf = obj;
             }
 
@@ -456,90 +441,98 @@ impl DavFileSystem for S3Backend {
                 client: self.client.clone(),
             }) as Box<dyn DavFile>)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn read_dir<'a>(
         &'a self,
         path: &'a DavPath,
-        meta: ReadDirMeta,
+        _: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
-        use futures_util::FutureExt;
+        let span = span!(Level::INFO, "S3Backend::read_dir");
         async move {
             let path: NormalizedPath = path.into();
             Ok(self.read_dir_impl(path).await?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
-        async move { Ok(self.metadata_info(path.into()).await? as Box<dyn DavMetaData>) }.boxed()
+        let span = span!(Level::INFO, "S3Backend::metadata");
+        async move { Ok(self.metadata_info(path.into()).await? as Box<dyn DavMetaData>) }
+            .instrument(span)
+            .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "S3Backend::create_dir");
         async move {
             let path: NormalizedPath = path.into();
             Ok(self.create_dir_impl(path).await?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "S3Backend::remove_file");
         async move {
             let path: NormalizedPath = path.into();
             Ok(self.remove_file_impl(path, true).await.unwrap())
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "S3Backend::remove_dir");
         async move {
             let path: NormalizedPath = path.into();
             Ok(self.remove_dir_impl(path).await?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "S3Backend::rename");
         async move {
             let from: NormalizedPath = from.into();
             let to: NormalizedPath = to.into();
             Ok(self.rename_impl(from, to).await?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "S3Backend::copy");
         async move {
             let from: NormalizedPath = from.into();
             let to: NormalizedPath = to.into();
             debug!(method = "copy", from = ?from, to = ?to);
             Ok(self.copy_impl(from, to).await?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn have_props<'a>(
         &'a self,
-        path: &'a DavPath,
+        _: &'a DavPath,
     ) -> std::pin::Pin<Box<dyn futures_util::Future<Output = bool> + Send + 'a>> {
-        async move { false }.boxed()
+        let span = span!(Level::INFO, "S3Backend::have_props");
+        async move { false }.instrument(span).boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn patch_props<'a>(
         &'a self,
         path: &'a DavPath,
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
+        let span = span!(Level::INFO, "S3Backend::patch_props");
         async move {
             return Err(FsError::NotImplemented);
             let path: NormalizedPath = path.into();
@@ -570,38 +563,42 @@ impl DavFileSystem for S3Backend {
 
             Ok(result)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn get_prop<'a>(
         &'a self,
         path: &'a DavPath,
         prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
+        let span = span!(Level::INFO, "S3Backend::get_prop");
         async move {
             return Err(FsError::NotImplemented);
             let path: NormalizedPath = path.into();
             let metadata = self.metadata_info(path).await?;
             Ok(metadata.get_prop(prop).unwrap_or(vec![]))
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn get_props<'a>(
         &'a self,
         path: &'a DavPath,
-        do_content: bool,
+        _do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
-        async move { 
+        let span = span!(Level::INFO, "S3Backend::get_prop");
+        async move {
             return Err(FsError::NotImplemented);
             let path: NormalizedPath = path.into();
             let metadata = self.metadata_info(path).await?;
             if let Ok(k) = metadata.as_davprops() {
                 return Ok(k);
             }
-            Err(FsError::GeneralFailure) 
-        }.boxed()
+            Err(FsError::GeneralFailure)
+        }
+        .instrument(span)
+        .boxed()
     }
 }
