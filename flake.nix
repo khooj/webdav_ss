@@ -53,10 +53,14 @@
           nixos-shell
         ];
         nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
+        moduleTests = (import ./tests.nix { inherit system pkgs litmus; });
       in rec {
         defaultPackage = pkg.rootCrate.build;
+        packages = {
+          tests = moduleTests.driverInteractive;
+        };
 
-        checks.nixosTests = (import ./nixosTests.nix { inherit system pkgs litmus; }).test;
+        checks.nixosTests = moduleTests.test;
 
         devShell = with pkgs;
           mkShell {

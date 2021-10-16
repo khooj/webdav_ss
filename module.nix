@@ -7,10 +7,7 @@ let
 			inherit (cfg) host port;
 		};
 
-		filesystems = map (x: {
-			inherit (x) type mount_path;
-			path = if (x.path != null) then x.path else null;
-		}) cfg.filesystems;
+		filesystems = cfg.filesystems;
 	});
 in
 with lib;
@@ -46,44 +43,33 @@ with lib;
 		};
 
 		filesystems = with types; let 
-			subtype = submodule {
-				options = {
-					path = mkOption {
-						type = nullOr str;
-						description = "(FS Only) system path";
-						default = null;
-					};
-
-					mount_path = mkOption {
-						type = str;
-						description = "Mount path";
-						default = "/";
-					};
-
-					type = mkOption {
-						type = enum [ "FS" "Mem" ];
-						description = "Mounted backend type";
-					};
-				};
-			};
+			subtype = attrs;
 		in mkOption {
 			type = listOf subtype;
 			description = "Mounted filesystems";
 			default = [];
 		};
+
+		environment = mkOption {
+			type = types.attrs;
+			description = "Environment variables";
+			default = {};
+		};
 	};
 
 	config = mkIf cfg.enable {
 		systemd.services.webdav_ss = {
-			wantedBy = [ "multi-user.target" "network-online.target" ];
+			wantedBy = [ "multi-user.target" ];
+			after = [ "network-online.target" ];
 			script = "${cfg.package}/bin/webdav_ss -c ${cfgFile}";
 			restartIfChanged = true;
 			environment = {
 				"RUST_LOG" = cfg.logLevel;
-			};
+			} // cfg.environment;
 			serviceConfig = {
 				Restart = "on-failure";
-				RestartSec = 3;
+				RestartSec = 5;
+				TimeoutStartSec = 5;
 			};
 		};
 	};

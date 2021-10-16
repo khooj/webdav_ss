@@ -10,18 +10,45 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ ... }:
 			enable = true;
 			host = "0.0.0.0";
 			port = 5000;
-			logLevel = "debug";
+			logLevel = "info";
+			environment = {
+				"AWS_ACCESS_KEY_ID" = "minioadmin";
+				"AWS_SECRET_ACCESS_KEY" = "minioadmin";
+			};
 			filesystems = [
 				{
 					mount_path = "/fs1";
-					type = "Mem";
+					type = "mem";
 				}
 				{
 					mount_path = "/fs2";
 					path = "/tmp/webdav_ss/fs2";
-					type = "FS";
+					type = "fs";
+				}
+				{
+					type = "s3";
+					mount_path = "/fs3";
+					url = "http://localhost:9000";
+					bucket = "test";
+					region = "us-east-1";
 				}
 			];
+		};
+
+		services.minio = let
+			envFile = pkgs.writeText "envs" ''
+			MINIO_ROOT_USER=minioadmin
+			MINIO_ROOT_PASSWORD=minioadmin
+			MINIO_DOMAIN=localhost
+			'';
+		in {
+			enable = true;
+			rootCredentialsFile = envFile;
+		};
+
+		systemd.services.webdav_ss = {
+			requires = [ "minio.service" ];
+			after = [ "minio.service" ];
 		};
 	};
 
@@ -33,5 +60,6 @@ machine.wait_for_unit("webdav_ss.service")
 machine.succeed("litmus http://localhost:5000/fs1")
 # FS backend fails on few tests in "locks" and "props" suites
 machine.succeed("TESTS=\"basic copymove http\" litmus http://localhost:5000/fs2")
+machine.succeed("TESTS=\"basic copymove http\" litmus http://localhost:5000/fs3")
 '';
 }) { inherit system; }
