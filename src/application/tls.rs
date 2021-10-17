@@ -6,7 +6,7 @@ use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
 use std::{fs, io, pin::Pin, sync};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
-use tracing::info;
+use tracing::{info, error};
 
 fn error(s: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
@@ -83,6 +83,10 @@ pub async fn build_tls<'a>(addr: &str, cert: &str, key: &str) -> Result<HyperTls
                 info!("Voluntary server halt due to client-connection error");
                 error(format!("TLS error: {:?}", e))
             });
+            if let Err(e) = stream {
+                error!(msg = ?e);
+                continue
+            }
             yield stream;
         }
     };

@@ -29,7 +29,7 @@ macro_rules! cfg_feature {
 cfg_feature!(
     #![all(not(feature = "tls"))]
 
-    use std::{net::SocketAddr, std::FromStr};
+    use std::{net::SocketAddr, str::FromStr};
 );
 
 cfg_feature!(
@@ -61,7 +61,9 @@ async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
 pub struct Application {
     addr: String,
     dav_server: DavHandler,
+    #[cfg(feature = "tls")]
     key: String,
+    #[cfg(feature = "tls")]
     cert: String,
 }
 
@@ -81,13 +83,17 @@ impl Application {
             .locksystem(MemLs::new())
             .build_handler();
 
+        #[cfg(feature = "tls")]
         let key = config.app.key;
+        #[cfg(feature = "tls")]
         let cert = config.app.cert;
 
         Application {
             addr,
             dav_server,
+            #[cfg(feature = "tls")]
             key,
+            #[cfg(feature = "tls")]
             cert,
         }
     }
