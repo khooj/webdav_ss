@@ -22,6 +22,10 @@ pub fn setup_tracing() {
 pub struct Application {
     pub host: String,
     pub port: u16,
+    #[cfg(feature = "tls")]
+    pub cert: String,
+    #[cfg(feature = "tls")]
+    pub key: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]

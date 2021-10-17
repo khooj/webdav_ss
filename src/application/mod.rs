@@ -8,11 +8,36 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
-use std::{convert::Infallible, net::SocketAddr, str::FromStr};
+use std::convert::Infallible;
 use tracing::{error, instrument};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
+
+macro_rules! cfg_feature {
+    (
+        #![$meta:meta]
+        $($item:item)*
+    ) => {
+        $(
+            #[cfg($meta)]
+            $item
+        )*
+    }
+}
+
+cfg_feature!(
+    #![all(not(feature = "tls"))]
+
+    use std::{net::SocketAddr, std::FromStr};
+);
+
+cfg_feature!(
+    #![all(feature = "tls")]
+
+    mod tls;
+    use self::tls::build_tls;
+);
 
 async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
     match fs {
@@ -34,14 +59,15 @@ async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
 }
 
 pub struct Application {
-    addr: SocketAddr,
+    addr: String,
     dav_server: DavHandler,
+    key: String,
+    cert: String,
 }
 
 impl Application {
     pub async fn build(config: Configuration) -> Application {
-        let addr = SocketAddr::from_str(&format!("{}:{}", config.app.host, config.app.port))
-            .expect("can't parse host and port");
+        let addr = format!("{}:{}", config.app.host, config.app.port);
         let mut fs = AggregateBuilder::new(Box::new(MemoryRepository::new()));
 
         for fss in config.filesystems {
@@ -55,13 +81,20 @@ impl Application {
             .locksystem(MemLs::new())
             .build_handler();
 
-        Application { addr, dav_server }
+        let key = config.app.key;
+        let cert = config.app.cert;
+
+        Application {
+            addr,
+            dav_server,
+            key,
+            cert,
+        }
     }
 
     #[instrument(skip(self))]
     pub async fn run(self) {
         let dav_server = self.dav_server;
-        let addr = self.addr;
         let make_svc = make_service_fn(move |_conn| {
             let dav_server = dav_server.clone();
             async move {
@@ -72,7 +105,21 @@ impl Application {
                 Ok::<_, Infallible>(service_fn(func))
             }
         });
-        if let Err(e) = Server::bind(&addr).serve(make_svc).await {
+
+        #[cfg(feature = "tls")]
+        let srv = Server::builder(
+            build_tls(&self.addr, &self.cert, &self.key)
+                .await
+                .expect("can't build tls connector"),
+        )
+        .serve(make_svc);
+
+        #[cfg(not(feature = "tls"))]
+        let addr = SocketAddr::from_str(&self.addr).expect("can't parse host and port");
+        #[cfg(not(feature = "tls"))]
+        let srv = Server::bind(&addr).serve(make_svc);
+
+        if let Err(e) = srv.await {
             error!("error running server: {}", e);
         }
     }

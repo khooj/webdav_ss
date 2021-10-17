@@ -1,0 +1,15 @@
+version: '3'
+services:
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_DOMAIN=localhost
+    ports:
+      - 9000:9000
+      - 9001:9001
+    volumes:
+      - miniodata:/data
+
+volumes:
+  miniodata:

@@ -557,6 +557,52 @@ rec {
         };
         resolvedDefaultFeatures = [ "alloc" "async-channel" "async-global-executor" "async-io" "async-lock" "crossbeam-utils" "default" "futures-channel" "futures-core" "futures-io" "futures-lite" "gloo-timers" "kv-log-macro" "log" "memchr" "num_cpus" "once_cell" "pin-project-lite" "pin-utils" "slab" "std" "wasm-bindgen-futures" ];
       };
+      "async-stream" = rec {
+        crateName = "async-stream";
+        version = "0.3.2";
+        edition = "2018";
+        sha256 = "0986b72jksg4lndw76py9glry3snc29bbqrna874wl5jwgkp84qp";
+        authors = [
+          "Carl Lerche <me@carllerche.com>"
+        ];
+        dependencies = [
+          {
+            name = "async-stream-impl";
+            packageId = "async-stream-impl";
+          }
+          {
+            name = "futures-core";
+            packageId = "futures-core";
+          }
+        ];
+
+      };
+      "async-stream-impl" = rec {
+        crateName = "async-stream-impl";
+        version = "0.3.2";
+        edition = "2018";
+        sha256 = "024k57iwmmhzvbzacxlkssh45cqlnb8xjlvlsp60jm6fsb4di3k4";
+        procMacro = true;
+        authors = [
+          "Carl Lerche <me@carllerche.com>"
+        ];
+        dependencies = [
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn";
+            features = [ "extra-traits" "full" "visit-mut" ];
+          }
+        ];
+
+      };
       "async-task" = rec {
         crateName = "async-task";
         version = "4.0.3";
@@ -629,7 +675,7 @@ rec {
           }
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
             optional = true;
           }
           {
@@ -1303,6 +1349,22 @@ rec {
         features = {
           "dev" = [ "blobby" ];
         };
+      };
+      "ct-logs" = rec {
+        crateName = "ct-logs";
+        version = "0.8.0";
+        edition = "2018";
+        sha256 = "1j5as2h789c2gazq3drl5i58xk8zzx6sxd1wdr19x3d6dwc1da61";
+        authors = [
+          "Joseph Birr-Pixton <jpixton@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "sct";
+            packageId = "sct 0.6.1";
+          }
+        ];
+
       };
       "ctor" = rec {
         crateName = "ctor";
@@ -2570,6 +2632,11 @@ rec {
         ];
         dependencies = [
           {
+            name = "ct-logs";
+            packageId = "ct-logs";
+            optional = true;
+          }
+          {
             name = "futures-util";
             packageId = "futures-util";
           }
@@ -2588,6 +2655,11 @@ rec {
             packageId = "rustls 0.19.1";
           }
           {
+            name = "rustls-native-certs";
+            packageId = "rustls-native-certs";
+            optional = true;
+          }
+          {
             name = "tokio";
             packageId = "tokio";
           }
@@ -2597,7 +2669,7 @@ rec {
           }
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
           }
         ];
         devDependencies = [
@@ -2618,6 +2690,7 @@ rec {
           "tokio-runtime" = [ "hyper/runtime" "ct-logs" ];
           "webpki-tokio" = [ "tokio-runtime" "webpki-roots" ];
         };
+        resolvedDefaultFeatures = [ "ct-logs" "default" "native-tokio" "rustls-native-certs" "tokio-runtime" ];
       };
       "hyper-tls" = rec {
         crateName = "hyper-tls";
@@ -4604,11 +4677,11 @@ rec {
           }
           {
             name = "sct";
-            packageId = "sct";
+            packageId = "sct 0.6.1";
           }
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
           }
         ];
         devDependencies = [
@@ -4647,11 +4720,11 @@ rec {
           }
           {
             name = "sct";
-            packageId = "sct";
+            packageId = "sct 0.6.1";
           }
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
           }
         ];
         devDependencies = [
@@ -4665,6 +4738,97 @@ rec {
           "logging" = [ "log" ];
         };
         resolvedDefaultFeatures = [ "dangerous_configuration" "default" "log" "logging" ];
+      };
+      "rustls 0.20.0" = rec {
+        crateName = "rustls";
+        version = "0.20.0";
+        edition = "2018";
+        sha256 = "15gw27kk0rr7wchga4c0gz6gx1v7lwk8acp278fxq954ih3wcnlv";
+        authors = [
+          "Joseph Birr-Pixton <jpixton@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+            optional = true;
+          }
+          {
+            name = "ring";
+            packageId = "ring";
+          }
+          {
+            name = "sct";
+            packageId = "sct 0.7.0";
+          }
+          {
+            name = "webpki";
+            packageId = "webpki 0.22.0";
+            features = [ "alloc" "std" ];
+          }
+        ];
+        devDependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+        ];
+        features = {
+          "default" = [ "logging" "tls12" ];
+          "logging" = [ "log" ];
+        };
+        resolvedDefaultFeatures = [ "default" "log" "logging" "tls12" ];
+      };
+      "rustls-native-certs" = rec {
+        crateName = "rustls-native-certs";
+        version = "0.5.0";
+        edition = "2018";
+        sha256 = "14i0bbbigk6r6262hvc51vz4dvqk1f3vg2f264wfvn2vi30vf1ss";
+        authors = [
+          "Joseph Birr-Pixton <jpixton@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "openssl-probe";
+            packageId = "openssl-probe";
+            target = { target, features }: ((target."unix" or false) && (!(target."os" == "macos")));
+          }
+          {
+            name = "rustls";
+            packageId = "rustls 0.19.1";
+            optional = true;
+          }
+          {
+            name = "schannel";
+            packageId = "schannel";
+            target = { target, features }: (target."windows" or false);
+          }
+          {
+            name = "security-framework";
+            packageId = "security-framework";
+            target = { target, features }: (target."os" == "macos");
+          }
+        ];
+        features = {
+          "default" = [ "rustls" ];
+        };
+        resolvedDefaultFeatures = [ "default" "rustls" ];
+      };
+      "rustls-pemfile" = rec {
+        crateName = "rustls-pemfile";
+        version = "0.2.1";
+        edition = "2018";
+        sha256 = "1jfi97lqnnnnxhmfy6ygrsp0x70m8wsdpaw45svvz1qc6vmymssy";
+        authors = [
+          "Joseph Birr-Pixton <jpixton@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "base64";
+            packageId = "base64 0.13.0";
+          }
+        ];
+
       };
       "ryu" = rec {
         crateName = "ryu";
@@ -4711,11 +4875,31 @@ rec {
           "default" = [ "use_std" ];
         };
       };
-      "sct" = rec {
+      "sct 0.6.1" = rec {
         crateName = "sct";
         version = "0.6.1";
         edition = "2018";
         sha256 = "1ki8qa7yf4d9i4ynsfvwwkpnnqw0m8ayx0jva4w9zrp0k0wbhqmk";
+        authors = [
+          "Joseph Birr-Pixton <jpixton@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "ring";
+            packageId = "ring";
+          }
+          {
+            name = "untrusted";
+            packageId = "untrusted";
+          }
+        ];
+
+      };
+      "sct 0.7.0" = rec {
+        crateName = "sct";
+        version = "0.7.0";
+        edition = "2018";
+        sha256 = "193w3dg2pcn7138ab4c586pl76nkryn4h6wqlwvqj5gqr6vwsgfm";
         authors = [
           "Joseph Birr-Pixton <jpixton@gmail.com>"
         ];
@@ -5779,7 +5963,7 @@ rec {
           }
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
           }
         ];
         devDependencies = [
@@ -7229,6 +7413,11 @@ rec {
             packageId = "anyhow";
           }
           {
+            name = "async-stream";
+            packageId = "async-stream";
+            optional = true;
+          }
+          {
             name = "base64";
             packageId = "base64 0.13.0";
           }
@@ -7270,6 +7459,11 @@ rec {
             features = [ "server" "tcp" "http1" "stream" "client" ];
           }
           {
+            name = "hyper-rustls";
+            packageId = "hyper-rustls";
+            optional = true;
+          }
+          {
             name = "percent-encoding";
             packageId = "percent-encoding 2.1.0";
           }
@@ -7277,6 +7471,16 @@ rec {
             name = "rust-s3";
             packageId = "rust-s3";
             features = [ "rustls-tls" "no-verify-ssl" ];
+          }
+          {
+            name = "rustls";
+            packageId = "rustls 0.20.0";
+            optional = true;
+          }
+          {
+            name = "rustls-pemfile";
+            packageId = "rustls-pemfile";
+            optional = true;
           }
           {
             name = "serde";
@@ -7287,6 +7491,11 @@ rec {
             name = "tokio";
             packageId = "tokio";
             features = [ "full" ];
+          }
+          {
+            name = "tokio-rustls";
+            packageId = "tokio-rustls";
+            optional = true;
           }
           {
             name = "tokio-stream";
@@ -7320,9 +7529,12 @@ rec {
             packageId = "testcontainers";
           }
         ];
-
+        features = {
+          "tls" = [ "hyper-rustls" "rustls" "rustls-pemfile" "tokio-rustls" "async-stream" ];
+        };
+        resolvedDefaultFeatures = [ "async-stream" "hyper-rustls" "rustls" "rustls-pemfile" "tls" "tokio-rustls" ];
       };
-      "webpki" = rec {
+      "webpki 0.21.4" = rec {
         crateName = "webpki";
         version = "0.21.4";
         edition = "2018";
@@ -7349,6 +7561,31 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "std" "trust_anchor_util" ];
       };
+      "webpki 0.22.0" = rec {
+        crateName = "webpki";
+        version = "0.22.0";
+        edition = "2018";
+        sha256 = "1gd1gxip5kgdwmrvhj5gjxij2mgg2mavq1ych4q1h272ja0xg5gh";
+        authors = [
+          "Brian Smith <brian@briansmith.org>"
+        ];
+        dependencies = [
+          {
+            name = "ring";
+            packageId = "ring";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "untrusted";
+            packageId = "untrusted";
+          }
+        ];
+        features = {
+          "alloc" = [ "ring/alloc" ];
+          "std" = [ "alloc" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "std" ];
+      };
       "webpki-roots 0.19.0" = rec {
         crateName = "webpki-roots";
         version = "0.19.0";
@@ -7361,7 +7598,7 @@ rec {
         dependencies = [
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
           }
         ];
 
@@ -7378,7 +7615,7 @@ rec {
         dependencies = [
           {
             name = "webpki";
-            packageId = "webpki";
+            packageId = "webpki 0.21.4";
           }
         ];
 

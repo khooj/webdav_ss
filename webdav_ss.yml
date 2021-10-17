@@ -1,6 +1,8 @@
 app:
   host: "0.0.0.0"
   port: 8080
+  key: ssc/san-privatersa-key.key
+  cert: ssc/san_server.crt
 filesystems:
   - mount_path: /
     type: s3
