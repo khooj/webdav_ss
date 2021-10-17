@@ -55,10 +55,17 @@ with lib;
 			description = "Environment variables";
 			default = {};
 		};
+
+		environmentFile = mkOption {
+			type = with types; nullOr (either path str);
+			description = "Environment file";
+			default = null;
+		};
 	};
 
 	config = mkIf cfg.enable {
-		systemd.services.webdav_ss = {
+		systemd.services.webdav_ss = let
+		in {
 			wantedBy = [ "multi-user.target" ];
 			after = [ "network-online.target" ];
 			script = "${cfg.package}/bin/webdav_ss -c ${cfgFile}";
@@ -67,9 +74,10 @@ with lib;
 				"RUST_LOG" = cfg.logLevel;
 			} // cfg.environment;
 			serviceConfig = {
+				EnvironmentFile = mkIf (cfg.environmentFile != null) (toString cfg.environmentFile);
 				Restart = "on-failure";
 				RestartSec = 5;
-				TimeoutStartSec = 5;
+				TimeoutSec = 10;
 			};
 		};
 	};

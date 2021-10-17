@@ -1,5 +1,5 @@
 { system, pkgs, litmus }:
-import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ ... }: 
+import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }: 
 {
 	name = "check";
 	machine = { ... }: {
@@ -13,7 +13,6 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ ... }:
 			logLevel = "info";
 			environment = {
 				"AWS_ACCESS_KEY_ID" = "minioadmin";
-				"AWS_SECRET_ACCESS_KEY" = "minioadmin";
 			};
 			filesystems = [
 				{
@@ -33,6 +32,10 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ ... }:
 					region = "us-east-1";
 				}
 			];
+
+			environmentFile = pkgs.writeText "envs" ''
+			AWS_SECRET_ACCESS_KEY=minioadmin
+			'';
 		};
 
 		services.minio = let
@@ -47,8 +50,17 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ ... }:
 		};
 
 		systemd.services.webdav_ss = {
-			requires = [ "minio.service" ];
+			wants = [ "minio.service" ];
 			after = [ "minio.service" ];
+			serviceConfig = {
+				Restart = lib.mkForce "no";
+			};
+		};
+
+		systemd.services.minio = {
+			serviceConfig = {
+				TimeoutStartSec = 5;
+			};
 		};
 	};
 
