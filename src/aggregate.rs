@@ -3,10 +3,11 @@ use anyhow::{anyhow, Result};
 use futures_util::{future, FutureExt};
 use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    path::Path,
     sync::{Arc, Mutex},
 };
-use tracing::{instrument, debug};
+use tracing::{debug, instrument};
 use webdav_handler::{
     davpath::DavPath,
     fs::{
@@ -71,6 +72,33 @@ impl Aggregate {
         }
         Err(FsError::NotFound)
     }
+
+    #[instrument(level = "debug", skip(self))]
+    fn find_routes_at_level(&self, level: &DavPath) -> FsResult<Vec<String>> {
+        let mut results = HashSet::new();
+
+        let level = level.as_pathbuf();
+        let level = level.parent().unwrap_or(&Path::new("/"));
+        let level = level.to_str().ok_or(FsError::NotFound)?.to_owned();
+        for (k, v) in &self.filesystems {
+            let kk = Path::new(k);
+            let kk = kk.parent();
+            if kk.is_none() {
+                continue;
+            }
+            let kk = kk.unwrap();
+            let kk = kk.to_str();
+            if kk.is_none() {
+                continue;
+            }
+            let kk = kk.unwrap();
+
+            if level == kk || kk.starts_with(&level) {
+                results.insert(kk.clone());
+            }
+        }
+        Ok(results.into_iter().collect())
+    }
 }
 
 impl DavFileSystem for Aggregate {
@@ -91,11 +119,11 @@ impl DavFileSystem for Aggregate {
         path: &'a DavPath,
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
+        use futures_util::StreamExt;
+
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.read_dir(&path, meta).await;
-            debug!(method = "read_dir");
-            // TODO: somehow log result?
             Ok(result?)
         }
         .boxed()
@@ -106,7 +134,6 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.metadata(&path).await;
-            debug!(method = "metadata", result = ?result);
             Ok(result?)
         }
         .boxed()
@@ -117,7 +144,6 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.create_dir(&path).await;
-            debug!(method = "create_dir", result = ?result);
             Ok(result?)
         }
         .boxed()
@@ -127,7 +153,6 @@ impl DavFileSystem for Aggregate {
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            debug!(method = "remove_file");
             Ok(route.remove_file(&path).await?)
         }
         .boxed()
@@ -137,7 +162,6 @@ impl DavFileSystem for Aggregate {
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            debug!(method = "remove_dir");
             Ok(route.remove_dir(&path).await?)
         }
         .boxed()
@@ -148,7 +172,6 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
-            debug!(method = "rename");
             Ok(route.rename(&from, &to).await?)
         }
         .boxed()
@@ -159,18 +182,22 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
-            debug!(method = "copy");
             Ok(route.copy(&from, &to).await?)
         }
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn have_props<'a>(
         &'a self,
         path: &'a DavPath,
     ) -> std::pin::Pin<Box<dyn futures_util::Future<Output = bool> + Send + 'a>> {
-        future::ready(true).boxed()
+        Box::pin(async move {
+            if let Ok((route, path)) = self.find_route(path) {
+                route.have_props(&path).await
+            } else {
+                false
+            }
+        })
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -277,6 +304,33 @@ mod tests {
         assert_eq!(f, helper_path("/one/"));
 
         assert!(fs.find_route(&helper_path("/not_exist")).is_err());
+        Ok(())
+    }
+
+    fn add_route(fs: &mut Aggregate, route: &str) {
+        fs.add_route((route, MemFs::new()));
+    }
+
+    #[test]
+    fn check_find_level() -> Result<()> {
+        let mut fs = Aggregate::new(Box::new(MemoryRepository::new()));
+        add_route(&mut fs, "/fs1");
+        add_route(&mut fs, "/fs2");
+        add_route(&mut fs, "/tmp/fs1");
+        add_route(&mut fs, "/tmp/fs2");
+        add_route(&mut fs, "/tmp/tmp/fs2");
+        add_route(&mut fs, "/tmp/tmp/tmp/fs2");
+
+        assert_eq!(fs.find_routes_at_level(&helper_path("/"))?.len(), 3);
+        assert_eq!(fs.find_routes_at_level(&helper_path("/fs1/"))?.len(), 0);
+        assert_eq!(fs.find_routes_at_level(&helper_path("/tmp/"))?.len(), 3);
+        assert_eq!(fs.find_routes_at_level(&helper_path("/tmp/tmp/"))?.len(), 2);
+        assert_eq!(
+            fs.find_routes_at_level(&helper_path("/tmp/tmp/tmp/"))?
+                .len(),
+            1
+        );
+
         Ok(())
     }
 }
