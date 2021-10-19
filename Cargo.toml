@@ -28,10 +28,10 @@ hyper-rustls = { version = "0.22", optional = true }
 rustls = { version = "0.20", optional = true }
 rustls-pemfile = { version = "0.2", optional = true }
 tokio-rustls = { version = "0.22", optional = true }
-async-stream = { version = "0.3", optional = true }
+async-stream = { version = "0.3" }
 
 [dev-dependencies]
 testcontainers = "0.12"
 
 [features]
-tls = [ "hyper-rustls", "rustls", "rustls-pemfile", "tokio-rustls", "async-stream" ]
+tls = [ "hyper-rustls", "rustls", "rustls-pemfile", "tokio-rustls" ]

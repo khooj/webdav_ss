@@ -73,31 +73,72 @@ impl Aggregate {
         Err(FsError::NotFound)
     }
 
+    // TODO: rewrite method with better code.
     #[instrument(level = "debug", skip(self))]
     fn find_routes_at_level(&self, level: &DavPath) -> FsResult<Vec<String>> {
         let mut results = HashSet::new();
 
-        let level = level.as_pathbuf();
+        let col = level.is_collection();
+        let mut level = level.as_pathbuf();
+        if col {
+            // append something for parent() call
+            level = level.join("e");
+        }
         let level = level.parent().unwrap_or(&Path::new("/"));
         let level = level.to_str().ok_or(FsError::NotFound)?.to_owned();
-        for (k, v) in &self.filesystems {
-            let kk = Path::new(k);
-            let kk = kk.parent();
-            if kk.is_none() {
-                continue;
-            }
-            let kk = kk.unwrap();
-            let kk = kk.to_str();
-            if kk.is_none() {
-                continue;
-            }
-            let kk = kk.unwrap();
+        for (k, _) in &self.filesystems {
+            let p = Path::new(k);
+            let stripped = p.strip_prefix(&level);
+            if let Ok(k) = stripped {
+                let k = k.to_str().unwrap();
+                if k.is_empty() {
+                    continue;
+                }
+                let el = k.split('/').nth(0);
+                if el.is_none() {
+                    continue;
+                }
 
-            if level == kk || kk.starts_with(&level) {
-                results.insert(kk.clone());
+                let el = el.unwrap();
+                let l = Path::new(&level);
+                let pp = l.join(el);
+
+                results.insert(pp.to_str().unwrap().to_owned());
             }
         }
+
         Ok(results.into_iter().collect())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct AggregateMetaData {}
+
+impl DavMetaData for AggregateMetaData {
+    fn len(&self) -> u64 {
+        0u64
+    }
+
+    fn modified(&self) -> FsResult<std::time::SystemTime> {
+        Ok(std::time::SystemTime::now())
+    }
+
+    fn is_dir(&self) -> bool {
+        true
+    }
+}
+
+struct AggregateDirEntry {
+    path: String,
+}
+
+impl DavDirEntry for AggregateDirEntry {
+    fn name(&self) -> Vec<u8> {
+        self.path.clone().into()
+    }
+
+    fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
+        async move { Ok(Box::new(AggregateMetaData {}) as Box<dyn DavMetaData>) }.boxed()
     }
 }
 
@@ -119,12 +160,23 @@ impl DavFileSystem for Aggregate {
         path: &'a DavPath,
         meta: ReadDirMeta,
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
+        use async_stream::stream;
         use futures_util::StreamExt;
 
         async move {
+            let dirs = self.find_routes_at_level(path)?;
+
             let (route, path) = self.find_route(&path)?;
-            let result = route.read_dir(&path, meta).await;
-            Ok(result?)
+            let mut result = route.read_dir(&path, meta).await?;
+            let ss = stream! {
+                for i in result.next().await {
+                    yield i;
+                }
+                for d in dirs {
+                    yield Box::new(AggregateDirEntry{ path: d }) as Box<dyn DavDirEntry>;
+                }
+            };
+            Ok(Box::pin(ss) as FsStream<Box<dyn DavDirEntry>>)
         }
         .boxed()
     }
@@ -308,7 +360,7 @@ mod tests {
     }
 
     fn add_route(fs: &mut Aggregate, route: &str) {
-        fs.add_route((route, MemFs::new()));
+        let _ = fs.add_route((route, MemFs::new()));
     }
 
     #[test]
