@@ -1,8 +1,8 @@
 use super::{
     entries::{S3DirEntry, S3OpenFile},
     metadata::S3MetaData,
-    normalized_path::NormalizedPath,
 };
+use crate::backend::normalized_path::NormalizedPath;
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
 use hyper::StatusCode;
@@ -119,7 +119,7 @@ impl S3Backend {
         &self,
         path: NormalizedPath,
     ) -> Result<FsStream<Box<dyn DavDirEntry>>, FsError> {
-        use futures_util::stream;
+        use async_stream::stream;
 
         let meta = self.metadata_info(path.clone()).await;
         match meta {
@@ -135,38 +135,52 @@ impl S3Backend {
 
         let objects = self
             .client
-            .list(path.clone().into(), Some("".into()))
+            .list(path.clone().into(), Some("/".into()))
             .await
             .unwrap();
 
         debug!(msg = "received entries", entries = ?objects);
-        let mut entries = vec![];
-        for e in objects {
-            for c in e.contents {
-                let mut prefix: NormalizedPath = c.key.into();
-                if prefix.ends_with(".dir") {
-                    prefix = prefix.parent();
-                    if prefix == path {
-                        continue;
+        let fs = self.clone();
+        let s = stream! {
+            for e in objects {
+                if let Some(v) = e.common_prefixes {
+                    for d in v {
+                        let m = fs.metadata_info(d.prefix.clone().into()).await;
+                        if let Err(_) = m {
+                            continue;
+                        }
+                        let p: NormalizedPath = d.prefix.clone().into();
+                        let p = p.strip_prefix(&path);
+                        debug!(msg = "generating entry for dir", prefix = ?p);
+                        yield Box::new(S3DirEntry {
+                            metadata: m.unwrap(),
+                            name: p.into(),
+                        }) as Box<dyn DavDirEntry>;
                     }
                 }
-                let meta = self.metadata_info(prefix.clone().into()).await;
-                if let Err(_) = meta {
-                    continue;
+
+                for c in e.contents {
+                    let prefix: NormalizedPath = c.key.into();
+                    if prefix.ends_with(".dir") {
+                        continue;
+                    }
+                    let meta = fs.metadata_info(prefix.clone().into()).await;
+                    if let Err(_) = meta {
+                        debug!(msg = "error metadata for entry", prefix = ?prefix);
+                        continue;
+                    }
+                    let prefix = prefix.strip_prefix(&path);
+                    debug!(msg = "generating entry for", prefix = ?prefix);
+                    let entry = Box::new(S3DirEntry {
+                        metadata: meta.unwrap(),
+                        name: prefix.into(),
+                    }) as Box<dyn DavDirEntry>;
+                    yield entry;
                 }
-                let prefix = prefix.split_prefix(&path);
-                let entry = Box::new(S3DirEntry {
-                    metadata: meta.unwrap(),
-                    name: prefix.into(),
-                }) as Box<dyn DavDirEntry>;
-                entries.push(entry);
             }
-        }
+        };
 
-        let s = stream::iter(entries);
-        let s = Box::pin(s) as FsStream<Box<dyn DavDirEntry>>;
-
-        Ok(s)
+        Ok(Box::pin(s) as FsStream<Box<dyn DavDirEntry>>)
     }
 
     #[instrument(level = "debug", err, skip(self))]
@@ -524,7 +538,7 @@ impl DavFileSystem for S3Backend {
         _: &'a DavPath,
     ) -> std::pin::Pin<Box<dyn futures_util::Future<Output = bool> + Send + 'a>> {
         let span = span!(Level::INFO, "S3Backend::have_props");
-        async move { false }.instrument(span).boxed()
+        async move { true }.instrument(span).boxed()
     }
 
     fn patch_props<'a>(

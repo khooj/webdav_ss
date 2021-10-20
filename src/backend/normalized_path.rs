@@ -56,7 +56,7 @@ impl NormalizedPath {
             })
     }
 
-    pub fn split_prefix(&self, prefix: &NormalizedPath) -> NormalizedPath {
+    pub fn strip_prefix(&self, prefix: &NormalizedPath) -> NormalizedPath {
         self.0.trim_start_matches(&prefix.0).into()
     }
 
@@ -238,16 +238,21 @@ mod tests {
     fn split_prefix() {
         let p: NormalizedPath = "/some/long/directories/file.txt".into();
         assert_eq!(
-            p.split_prefix(&"/some/long/directories/".into()),
+            p.strip_prefix(&"/some/long/directories/".into()),
             NormalizedPath("file.txt".into())
         );
         assert_eq!(
-            p.split_prefix(&"/some/long/".into()),
+            p.strip_prefix(&"/some/long/".into()),
             NormalizedPath("directories/file.txt".into())
         );
         assert_eq!(
-            p.split_prefix(&"/some/".into()),
+            p.strip_prefix(&"/some/".into()),
             NormalizedPath("long/directories/file.txt".into())
+        );
+        let p: NormalizedPath = "somekey.txt".into();
+        assert_eq!(
+            p.strip_prefix(&"/".into()),
+            NormalizedPath("somekey.txt".into())
         );
     }
 }

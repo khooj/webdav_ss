@@ -1,3 +1,4 @@
+use super::backend::normalized_path::NormalizedPath;
 use super::repository::Repository;
 use anyhow::{anyhow, Result};
 use futures_util::{future, FutureExt};
@@ -7,7 +8,7 @@ use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, span, Instrument, Level};
 use webdav_handler::{
     davpath::DavPath,
     fs::{
@@ -60,7 +61,7 @@ impl Aggregate {
                     "/{}",
                     percent_encode(path.to_str().unwrap().as_bytes(), ENC).to_owned()
                 );
-                if col {
+                if col && !path.ends_with('/') {
                     path = format!("{}/", path);
                 }
                 debug!(route = %p, path = %path);
@@ -116,7 +117,11 @@ struct AggregateMetaData {}
 
 impl DavMetaData for AggregateMetaData {
     fn len(&self) -> u64 {
-        0u64
+        4 * 1024
+    }
+
+    fn created(&self) -> FsResult<std::time::SystemTime> {
+        Ok(std::time::SystemTime::now())
     }
 
     fn modified(&self) -> FsResult<std::time::SystemTime> {
@@ -129,7 +134,7 @@ impl DavMetaData for AggregateMetaData {
 }
 
 struct AggregateDirEntry {
-    path: String,
+    path: NormalizedPath,
 }
 
 impl DavDirEntry for AggregateDirEntry {
@@ -148,7 +153,6 @@ impl DavFileSystem for Aggregate {
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.open(&path, options).await;
-            debug!(method = "open", result = ?result);
             Ok(result?)
         }
         .boxed()
@@ -162,22 +166,27 @@ impl DavFileSystem for Aggregate {
     ) -> FsFuture<FsStream<Box<dyn DavDirEntry>>> {
         use async_stream::stream;
         use futures_util::StreamExt;
+        let span = span!(Level::INFO, "Aggregate::read_dir");
 
         async move {
             let dirs = self.find_routes_at_level(path)?;
 
+            debug!(msg = "generated dirs to output", dirs = ?dirs);
             let (route, path) = self.find_route(&path)?;
             let mut result = route.read_dir(&path, meta).await?;
             let ss = stream! {
-                for i in result.next().await {
+                while let Some(i) = result.next().await {
+                    debug!(msg = "output from route()");
                     yield i;
                 }
                 for d in dirs {
-                    yield Box::new(AggregateDirEntry{ path: d }) as Box<dyn DavDirEntry>;
+                    debug!(msg = "yield aggregate dirs", name = %d);
+                    yield Box::new(AggregateDirEntry{ path: format!("{}/", d).into() }) as Box<dyn DavDirEntry>;
                 }
             };
             Ok(Box::pin(ss) as FsStream<Box<dyn DavDirEntry>>)
         }
+        .instrument(span)
         .boxed()
     }
 
