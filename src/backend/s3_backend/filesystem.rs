@@ -1,6 +1,7 @@
 use super::{
-    entries::{S3DirEntry, S3OpenFile},
+    entries::{S3DirEntry, S3File},
     metadata::S3MetaData,
+    simple_open_file::S3SimpleOpenFile,
 };
 use crate::backend::normalized_path::NormalizedPath;
 use anyhow::{anyhow, Result};
@@ -13,7 +14,7 @@ use s3::{
     Bucket,
 };
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
-use std::io::Cursor;
+use std::{io::Cursor, marker::PhantomData};
 use tracing::{debug, error, instrument, span, Instrument, Level};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
@@ -445,15 +446,14 @@ impl DavFileSystem for S3Backend {
                 false,
             );
 
-            let cursor = Cursor::new(buf);
-            Ok(Box::new(S3OpenFile {
+            Ok(Box::new(S3SimpleOpenFile::new(
                 metadata,
-                cursor,
+                buf,
                 is_new,
                 options,
-                path: path.into(),
-                client: self.client.clone(),
-            }) as Box<dyn DavFile>)
+                path.into(),
+                self.client.clone(),
+            )) as Box<dyn DavFile>)
         }
         .instrument(span)
         .boxed()
