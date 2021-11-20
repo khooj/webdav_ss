@@ -11,7 +11,7 @@ use webdav_handler::fs::{DavFile, DavMetaData, FsError, FsFuture, OpenOptions};
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct S3SimpleOpenFile {
+pub struct PartialOpenFile {
     is_new: bool,
     path: String,
     options: OpenOptions,
@@ -21,7 +21,7 @@ pub struct S3SimpleOpenFile {
     metadata: S3MetaData,
 }
 
-impl S3SimpleOpenFile {
+impl PartialOpenFile {
     pub fn new(
         metadata: S3MetaData,
         buf: Vec<u8>,
@@ -30,7 +30,7 @@ impl S3SimpleOpenFile {
         path: NormalizedPath,
         client: Bucket,
     ) -> Self {
-        S3SimpleOpenFile {
+        PartialOpenFile {
             metadata,
             cursor: Cursor::new(buf),
             is_new: new,
@@ -41,7 +41,7 @@ impl S3SimpleOpenFile {
     }
 }
 
-impl DavFile for S3SimpleOpenFile {
+impl DavFile for PartialOpenFile {
     fn metadata<'a>(&'a mut self) -> FsFuture<Box<dyn DavMetaData>> {
         async move { Ok(Box::new(self.metadata.clone()) as Box<dyn DavMetaData>) }.boxed()
     }

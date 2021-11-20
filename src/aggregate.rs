@@ -1,7 +1,7 @@
 use super::backend::normalized_path::NormalizedPath;
 use super::repository::Repository;
 use anyhow::{anyhow, Result};
-use futures_util::{future, FutureExt};
+use futures_util::FutureExt;
 use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::{
     collections::{HashMap, HashSet},
