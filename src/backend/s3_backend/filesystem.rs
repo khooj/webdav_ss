@@ -1,6 +1,7 @@
 use super::{
     entries::{S3DirEntry, S3File},
     metadata::S3MetaData,
+    partial_open_file::PartialOpenFile,
     simple_open_file::S3SimpleOpenFile,
 };
 use crate::backend::normalized_path::NormalizedPath;
@@ -446,14 +447,27 @@ impl DavFileSystem for S3Backend {
                 false,
             );
 
-            Ok(Box::new(S3SimpleOpenFile::new(
-                metadata,
-                buf,
-                is_new,
-                options,
-                path.into(),
-                self.client.clone(),
-            )) as Box<dyn DavFile>)
+            if is_new {
+                Ok(Box::new(
+                    PartialOpenFile::new(
+                        metadata,
+                        is_new,
+                        options,
+                        path.into(),
+                        self.client.clone(),
+                    )
+                    .await?,
+                ) as Box<dyn DavFile>)
+            } else {
+                Ok(Box::new(S3SimpleOpenFile::new(
+                    metadata,
+                    buf,
+                    is_new,
+                    options,
+                    path.into(),
+                    self.client.clone(),
+                )) as Box<dyn DavFile>)
+            }
         }
         .instrument(span)
         .boxed()
