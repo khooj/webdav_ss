@@ -16,8 +16,7 @@ tracing-log = "0.1"
 config = { version = "0.11", default-features = false, features = ["yaml"] }
 serde = { version = "1", features = [ "derive" ] }
 clap = "2.33"
-#rust-s3 = { git = "https://github.com/khooj/rust-s3", rev = "5387eda94071bbda7ebbd8e4fc612b77b101271e", features = ["rustls-tls", "no-verify-ssl"] }
-rust-s3 = { path = "../rust-s3/s3" }
+rust-s3 = { git = "https://github.com/khooj/rust-s3", rev = "0f499af0388687675c2c36b05bc9d21dd21c6340", features = ["rustls-tls", "no-verify-ssl"] }
 bytes = "1.1"
 derivative = "2.2.0"
 tokio-util = { version = "0.6", features = ["io"] }

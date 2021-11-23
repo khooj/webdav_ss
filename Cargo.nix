@@ -928,9 +928,9 @@ rec {
       };
       "blocking" = rec {
         crateName = "blocking";
-        version = "1.0.2";
+        version = "1.1.0";
         edition = "2018";
-        sha256 = "1s9myg9gqmwzrbc38p23bh4vkc8w4pbpddqrcrrl1xz1xpdp1qf5";
+        sha256 = "09zlnl0zc417ryz6in6ca8c6rrfyp3gb21xlz3vb34fknba4fvh4";
         authors = [
           "Stjepan Glavina <stjepang@gmail.com>"
         ];
@@ -1517,9 +1517,9 @@ rec {
       };
       "encoding_rs" = rec {
         crateName = "encoding_rs";
-        version = "0.8.28";
+        version = "0.8.29";
         edition = "2018";
-        sha256 = "0rf0r99q4kgjrx22kx7pjyjg4lm21599y3ggvy3hzj2spi7h5pw0";
+        sha256 = "0in7l50j06qmzzwk0h6bs5kdlyj5zyx9ab745lrzd60v1adahkm7";
         authors = [
           "Henri Sivonen <hsivonen@hsivonen.fi>"
         ];
@@ -1530,9 +1530,11 @@ rec {
           }
         ];
         features = {
+          "default" = [ "alloc" ];
           "fast-legacy-encode" = [ "fast-hangul-encode" "fast-hanja-encode" "fast-kanji-encode" "fast-gb-hanzi-encode" "fast-big5-hanzi-encode" ];
           "simd-accel" = [ "packed_simd" "packed_simd/into_bits" ];
         };
+        resolvedDefaultFeatures = [ "alloc" "default" ];
       };
       "event-listener" = rec {
         crateName = "event-listener";
@@ -2117,9 +2119,9 @@ rec {
       };
       "h2" = rec {
         crateName = "h2";
-        version = "0.3.4";
+        version = "0.3.7";
         edition = "2018";
-        sha256 = "0wm4wqq1h391qhikksiz58kv6fywxf9n97ng6600r8znzrf6gwyp";
+        sha256 = "0mdf0x3cxj4rhx2zrm0gnx02i43gqcz3q4awzidargff5xb1kn3z";
         authors = [
           "Carl Lerche <me@carllerche.com>"
           "Sean McArthur <sean@seanmonstar.com>"
@@ -3434,9 +3436,9 @@ rec {
       };
       "openssl" = rec {
         crateName = "openssl";
-        version = "0.10.36";
+        version = "0.10.38";
         edition = "2018";
-        sha256 = "0jpz4nj3q8y9xqqhbvvgsqcdinkgv125s4kg80ybgh7yfvdsr7wd";
+        sha256 = "15baqlphisr1f7ddq11jnrrzz4shdh35kwal24adyc2c4cif4yhc";
         authors = [
           "Steven Fackler <sfackler@gmail.com>"
         ];
@@ -3483,9 +3485,9 @@ rec {
       };
       "openssl-sys" = rec {
         crateName = "openssl-sys";
-        version = "0.9.67";
+        version = "0.9.71";
         edition = "2015";
-        sha256 = "0n5023ri01wfx54rr1zndi8qda6mhzscdpj09gsamqvczj6jvpv9";
+        sha256 = "0wscz8aqw4n6166sklz9fj5832iz2dpplxd4cfrhjyb0bqb3vwbx";
         build = "build/main.rs";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
@@ -3811,9 +3813,9 @@ rec {
       };
       "pkg-config" = rec {
         crateName = "pkg-config";
-        version = "0.3.20";
+        version = "0.3.22";
         edition = "2015";
-        sha256 = "1jz6qlr0k0nz5bxijdba6bznll98zkfnqx763swr6y1qni0i16vw";
+        sha256 = "07vy6mn0q6k2adrs7min3rpy999q7kprph0vb1414iwlybs5sa8j";
         authors = [
           "Alex Crichton <alex@alexcrichton.com>"
         ];
@@ -3821,9 +3823,9 @@ rec {
       };
       "polling" = rec {
         crateName = "polling";
-        version = "2.1.0";
+        version = "2.2.0";
         edition = "2018";
-        sha256 = "098zk8glik948jk4m0kzzzry672y1m22vn7lgr1shkm3kxvisd4j";
+        sha256 = "0najvslgg2zclsnxay071jdw0bna7f0abqvgx3isv7w817ah8m38";
         authors = [
           "Stjepan Glavina <stjepang@gmail.com>"
         ];
@@ -3835,7 +3837,7 @@ rec {
           {
             name = "libc";
             packageId = "libc";
-            target = { target, features }: (target."unix" or false);
+            target = { target, features }: ((target."unix" or false) || (target."os" == "fuchsia") || (target."os" == "vxworks"));
           }
           {
             name = "log";
@@ -4204,9 +4206,9 @@ rec {
       };
       "reqwest" = rec {
         crateName = "reqwest";
-        version = "0.11.4";
+        version = "0.11.6";
         edition = "2018";
-        sha256 = "08kdxaa7c5wzlr2f4qkqlczc86p30sz84xllk83dyxxvp5hryvi4";
+        sha256 = "1072nlhfybl1yl8dsfhmpdx9xllh8s1w82k2zkqgm1gnl9y95lk6";
         authors = [
           "Sean McArthur <sean@seanmonstar.com>"
         ];
@@ -4325,6 +4327,11 @@ rec {
             optional = true;
           }
           {
+            name = "serde_json";
+            packageId = "serde_json";
+            target = { target, features }: (target."arch" == "wasm32");
+          }
+          {
             name = "serde_urlencoded";
             packageId = "serde_urlencoded";
           }
@@ -4355,7 +4362,6 @@ rec {
             name = "wasm-bindgen";
             packageId = "wasm-bindgen";
             target = { target, features }: (target."arch" == "wasm32");
-            features = [ "serde-serialize" ];
           }
           {
             name = "wasm-bindgen-futures";
@@ -4400,6 +4406,12 @@ rec {
             usesDefaultFeatures = false;
             target = {target, features}: (!(target."arch" == "wasm32"));
             features = [ "macros" "rt-multi-thread" ];
+          }
+          {
+            name = "wasm-bindgen";
+            packageId = "wasm-bindgen";
+            target = {target, features}: (target."arch" == "wasm32");
+            features = [ "serde-serialize" ];
           }
         ];
         features = {
@@ -4534,8 +4546,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/khooj/rust-s3";
-          rev = "0e733fcb9517c1fb4c76b785542750efbe7c4308";
-          sha256 = "1q0vxvij1za4rp658ac7gnnfkxz36r16y6c2ax5820bmn45c99b1";
+          rev = "0f499af0388687675c2c36b05bc9d21dd21c6340";
+          sha256 = "0i7a1d078j4s26x703vyl08ws22p2m95192h8wq1pjvjsga19688";
         };
         libName = "s3";
         authors = [
@@ -5587,9 +5599,9 @@ rec {
       };
       "thiserror" = rec {
         crateName = "thiserror";
-        version = "1.0.29";
+        version = "1.0.30";
         edition = "2018";
-        sha256 = "124v54fr3b3i230naz4j04l401dnf2fb0d1g5fg3d0rd9c3clbk0";
+        sha256 = "05y4wm29ck8flwq5k1q6nhwh00a3b30cz3xr0qvnbwad5vjsnjw5";
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
         ];
@@ -5603,9 +5615,9 @@ rec {
       };
       "thiserror-impl" = rec {
         crateName = "thiserror-impl";
-        version = "1.0.29";
+        version = "1.0.30";
         edition = "2018";
-        sha256 = "0k290k93cs3gfmfjfdz23srx3rl0grj3lxh0hhjxxs3q5k657mds";
+        sha256 = "0jviwmvx6wzawsj6c9msic7h419wmsbjagl9dzhpydkzc8zzscma";
         procMacro = true;
         authors = [
           "David Tolnay <dtolnay@gmail.com>"
@@ -6519,9 +6531,9 @@ rec {
       };
       "value-bag" = rec {
         crateName = "value-bag";
-        version = "1.0.0-alpha.7";
+        version = "1.0.0-alpha.8";
         edition = "2018";
-        sha256 = "1bj0v1sq0xvwmxcixvia08a9r1mdfr257xwn7qan2hpr40ahwcnx";
+        sha256 = "0gr6w3mmx6ld13kmg36dbk9vncy57azrhc33lgxynqfw65vkz4kr";
         authors = [
           "Ashley Mannix <ashleymannix@live.com.au>"
         ];
@@ -6662,16 +6674,6 @@ rec {
             packageId = "cfg-if 1.0.0";
           }
           {
-            name = "serde";
-            packageId = "serde";
-            optional = true;
-          }
-          {
-            name = "serde_json";
-            packageId = "serde_json";
-            optional = true;
-          }
-          {
             name = "wasm-bindgen-macro";
             packageId = "wasm-bindgen-macro";
           }
@@ -6684,7 +6686,7 @@ rec {
           "strict-macro" = [ "wasm-bindgen-macro/strict-macro" ];
           "xxx_debug_only_print_generated_code" = [ "wasm-bindgen-macro/xxx_debug_only_print_generated_code" ];
         };
-        resolvedDefaultFeatures = [ "default" "serde" "serde-serialize" "serde_json" "spans" "std" ];
+        resolvedDefaultFeatures = [ "default" "spans" "std" ];
       };
       "wasm-bindgen-backend" = rec {
         crateName = "wasm-bindgen-backend";
@@ -7415,7 +7417,6 @@ rec {
           {
             name = "async-stream";
             packageId = "async-stream";
-            optional = true;
           }
           {
             name = "base64";
@@ -7530,9 +7531,9 @@ rec {
           }
         ];
         features = {
-          "tls" = [ "hyper-rustls" "rustls" "rustls-pemfile" "tokio-rustls" "async-stream" ];
+          "tls" = [ "hyper-rustls" "rustls" "rustls-pemfile" "tokio-rustls" ];
         };
-        resolvedDefaultFeatures = [ "async-stream" "hyper-rustls" "rustls" "rustls-pemfile" "tls" "tokio-rustls" ];
+        resolvedDefaultFeatures = [ "hyper-rustls" "rustls" "rustls-pemfile" "tls" "tokio-rustls" ];
       };
       "webpki 0.21.4" = rec {
         crateName = "webpki";

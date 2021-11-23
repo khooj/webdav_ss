@@ -48,26 +48,14 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 			enable = true;
 			rootCredentialsFile = envFile;
 		};
-
-		systemd.services.webdav_ss = {
-			wants = [ "minio.service" ];
-			after = [ "minio.service" ];
-			serviceConfig = {
-				Restart = lib.mkForce "no";
-			};
-		};
-
-		systemd.services.minio = {
-			serviceConfig = {
-				TimeoutStartSec = 5;
-			};
-		};
 	};
 
 	# skipLint = true;
 
 	testScript = ''
 start_all()
+machine.wait_for_unit("minio")
+machine.wait_for_open_port(9000)
 machine.wait_for_unit("webdav_ss.service")
 machine.succeed("litmus http://localhost:5000/fs1")
 # FS backend fails on few tests in "locks" and "props" suites

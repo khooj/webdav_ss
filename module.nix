@@ -1,7 +1,9 @@
 { config, pkgs, lib, ... }:
 let
 	cfg = config.services.webdav_ss;
-	webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
+	pkg = (import ./Cargo.nix { inherit pkgs; });
+	webdav_ss = pkg.rootCrate.build;
+	webdav_ss_tls = pkg.rootCrate.build.override { features = [ "tls" ]; };
 	cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
 		app = {
 			inherit (cfg) host port;
@@ -67,7 +69,7 @@ with lib;
 		systemd.services.webdav_ss = let
 		in {
 			wantedBy = [ "multi-user.target" ];
-			after = [ "network-online.target" ];
+			# after = [ "network-online.target" ];
 			script = "${cfg.package}/bin/webdav_ss -c ${cfgFile}";
 			restartIfChanged = true;
 			environment = {
