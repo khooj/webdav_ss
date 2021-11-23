@@ -13,7 +13,6 @@ use webdav_handler::fs::{DavFile, DavMetaData, FsError, FsFuture, FsResult, Open
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct PartialOpenFile {
-    is_new: bool,
     path: String,
     options: OpenOptions,
     #[derivative(Debug = "ignore")]
@@ -27,7 +26,6 @@ pub struct PartialOpenFile {
 impl PartialOpenFile {
     pub async fn new(
         metadata: S3MetaData,
-        new: bool,
         opts: OpenOptions,
         path: NormalizedPath,
         client: Bucket,
@@ -35,14 +33,14 @@ impl PartialOpenFile {
         let (id, code) = match client.create_multipart_upload(path.as_ref()).await {
             Ok(k) => k,
             Err(e) => {
-                error!(reason = "can't create multipart upload", err = ?e);
+                error!(msg = "can't create multipart upload", err = ?e);
                 return Err(FsError::GeneralFailure);
             }
         };
 
         if code != 200 {
             error!(
-                reason = "unsuccessful create multipart upload code",
+                msg = "unsuccessful create multipart upload code",
                 code = code
             );
             return Err(FsError::GeneralFailure);
@@ -50,7 +48,6 @@ impl PartialOpenFile {
 
         Ok(PartialOpenFile {
             metadata,
-            is_new: new,
             options: opts,
             path: path.to_string(),
             client,
@@ -105,7 +102,7 @@ impl PartialOpenFile {
             };
 
             if code != 200 {
-                error!(reason = "can't upload part", code = code);
+                error!(msg = "can't upload part", code = code);
                 let _ = self
                     .client
                     .abort_multipart_upload(&self.path, &self.upload_id)

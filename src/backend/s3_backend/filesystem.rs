@@ -400,8 +400,11 @@ impl DavFileSystem for S3Backend {
                 if k.is_dir() {
                     return Err(FsError::GeneralFailure);
                 }
+                if options.create_new {
+                    return Err(FsError::Exists);
+                }
             }
-            let mut is_new = false;
+
             let mut buf = vec![];
             let (head, code) = self
                 .client
@@ -409,9 +412,7 @@ impl DavFileSystem for S3Backend {
                 .await
                 .map_err(|_| FsError::GeneralFailure)?;
 
-            if code != 200 {
-                is_new = true;
-            } else {
+            if code == 200 {
                 let (obj, code) = self
                     .client
                     .get_object(path.as_ref())
@@ -427,7 +428,7 @@ impl DavFileSystem for S3Backend {
                 buf = obj;
             }
 
-            debug!(is_new = %is_new, path = ?path);
+            debug!(is_new = %options.create, path = ?path);
             let (mut tags, code) = self.client.get_object_tagging(path.as_ref()).await.unwrap();
 
             if code != 200 {
@@ -447,22 +448,15 @@ impl DavFileSystem for S3Backend {
                 false,
             );
 
-            if is_new {
+            if options.create {
                 Ok(Box::new(
-                    PartialOpenFile::new(
-                        metadata,
-                        is_new,
-                        options,
-                        path.into(),
-                        self.client.clone(),
-                    )
-                    .await?,
+                    PartialOpenFile::new(metadata, options, path.into(), self.client.clone())
+                        .await?,
                 ) as Box<dyn DavFile>)
             } else {
                 Ok(Box::new(S3SimpleOpenFile::new(
                     metadata,
                     buf,
-                    is_new,
                     options,
                     path.into(),
                     self.client.clone(),

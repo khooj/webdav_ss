@@ -12,7 +12,6 @@ use webdav_handler::fs::{DavFile, DavMetaData, FsError, FsFuture, OpenOptions};
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct S3SimpleOpenFile {
-    is_new: bool,
     path: String,
     options: OpenOptions,
     cursor: Cursor<Vec<u8>>,
@@ -25,7 +24,6 @@ impl S3SimpleOpenFile {
     pub fn new(
         metadata: S3MetaData,
         buf: Vec<u8>,
-        new: bool,
         opts: OpenOptions,
         path: NormalizedPath,
         client: Bucket,
@@ -33,7 +31,6 @@ impl S3SimpleOpenFile {
         S3SimpleOpenFile {
             metadata,
             cursor: Cursor::new(buf),
-            is_new: new,
             options: opts,
             path: path.to_string(),
             client,
@@ -95,7 +92,7 @@ impl DavFile for S3SimpleOpenFile {
                 .unwrap();
 
             if code != 200 {
-                debug!(reason = "put object unsuccessful", code = code);
+                debug!(msg = "put object unsuccessful", code = code);
                 return Err(FsError::GeneralFailure);
             }
 
@@ -107,7 +104,7 @@ impl DavFile for S3SimpleOpenFile {
                 .await
                 .unwrap();
             if code != 200 {
-                debug!(reason = "tag object unsuccessful", code = code);
+                debug!(msg = "tag object unsuccessful", code = code);
                 return Err(FsError::GeneralFailure);
             }
             Ok(())
