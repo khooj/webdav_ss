@@ -63,6 +63,9 @@ async fn test_s3_backend() {
         app: ConfigApplication {
             host: "127.0.0.1".into(),
             port: 8080,
+            tls: false,
+            cert: None,
+            key: None,
         },
         filesystems: vec![FilesystemType {
             mount_path: "/".into(),

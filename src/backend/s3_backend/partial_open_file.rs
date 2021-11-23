@@ -4,7 +4,7 @@ use bytes::Buf;
 use futures_util::FutureExt;
 use s3::serde_types::Part;
 use s3::Bucket;
-use std::io::{Seek, Write};
+use std::io::Write;
 use std::time::SystemTime;
 use std::{convert::TryInto, io::Cursor};
 use tracing::{debug, error, instrument};

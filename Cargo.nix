@@ -7462,7 +7462,6 @@ rec {
           {
             name = "hyper-rustls";
             packageId = "hyper-rustls";
-            optional = true;
           }
           {
             name = "percent-encoding";
@@ -7476,12 +7475,10 @@ rec {
           {
             name = "rustls";
             packageId = "rustls 0.20.0";
-            optional = true;
           }
           {
             name = "rustls-pemfile";
             packageId = "rustls-pemfile";
-            optional = true;
           }
           {
             name = "serde";
@@ -7496,7 +7493,6 @@ rec {
           {
             name = "tokio-rustls";
             packageId = "tokio-rustls";
-            optional = true;
           }
           {
             name = "tokio-stream";
@@ -7530,10 +7526,7 @@ rec {
             packageId = "testcontainers";
           }
         ];
-        features = {
-          "tls" = [ "hyper-rustls" "rustls" "rustls-pemfile" "tokio-rustls" ];
-        };
-        resolvedDefaultFeatures = [ "hyper-rustls" "rustls" "rustls-pemfile" "tls" "tokio-rustls" ];
+
       };
       "webpki 0.21.4" = rec {
         crateName = "webpki";

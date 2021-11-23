@@ -1,3 +1,5 @@
+mod tls;
+
 use super::{
     aggregate::AggregateBuilder,
     backend::s3_backend::S3Backend,
@@ -8,36 +10,12 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
-use std::convert::Infallible;
+use std::{convert::Infallible, net::SocketAddr, str::FromStr};
+use tls::build_tls;
 use tracing::{error, instrument};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
-
-macro_rules! cfg_feature {
-    (
-        #![$meta:meta]
-        $($item:item)*
-    ) => {
-        $(
-            #[cfg($meta)]
-            $item
-        )*
-    }
-}
-
-cfg_feature!(
-    #![all(not(feature = "tls"))]
-
-    use std::{net::SocketAddr, str::FromStr};
-);
-
-cfg_feature!(
-    #![all(feature = "tls")]
-
-    mod tls;
-    use self::tls::build_tls;
-);
 
 async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
     match fs {
@@ -58,13 +36,15 @@ async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
     }
 }
 
+struct KeyCert {
+    key: String,
+    cert: String,
+}
+
 pub struct Application {
     addr: String,
     dav_server: DavHandler,
-    #[cfg(feature = "tls")]
-    key: String,
-    #[cfg(feature = "tls")]
-    cert: String,
+    tls: Option<KeyCert>,
 }
 
 impl Application {
@@ -83,50 +63,64 @@ impl Application {
             .locksystem(MemLs::new())
             .build_handler();
 
-        #[cfg(feature = "tls")]
-        let key = config.app.key;
-        #[cfg(feature = "tls")]
-        let cert = config.app.cert;
+        let mut tls = None;
+        if config.app.tls {
+            tls = Some(KeyCert {
+                key: config.app.key.unwrap(),
+                cert: config.app.cert.unwrap(),
+            });
+        }
 
         Application {
             addr,
             dav_server,
-            #[cfg(feature = "tls")]
-            key,
-            #[cfg(feature = "tls")]
-            cert,
+            tls,
         }
     }
 
     #[instrument(skip(self))]
     pub async fn run(self) {
         let dav_server = self.dav_server;
-        let make_svc = make_service_fn(move |_conn| {
-            let dav_server = dav_server.clone();
-            async move {
-                let func = move |req| {
-                    let dav_server = dav_server.clone();
-                    async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
-                };
-                Ok::<_, Infallible>(service_fn(func))
+
+        // rust inherit different signatures for make_svc so for simple solution we just copy-paste it for now.
+        if self.tls.is_some() {
+            let make_svc = make_service_fn(move |_conn| {
+                let dav_server = dav_server.clone();
+                async move {
+                    let func = move |req| {
+                        let dav_server = dav_server.clone();
+                        async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
+                    };
+                    Ok::<_, Infallible>(service_fn(func))
+                }
+            });
+            let tls = self.tls.unwrap();
+            let srv = Server::builder(
+                build_tls(&self.addr, &tls.cert, &tls.key)
+                    .await
+                    .expect("can't build tls connector"),
+            )
+            .serve(make_svc);
+
+            if let Err(e) = srv.await {
+                error!("error running server: {}", e);
             }
-        });
-
-        #[cfg(feature = "tls")]
-        let srv = Server::builder(
-            build_tls(&self.addr, &self.cert, &self.key)
-                .await
-                .expect("can't build tls connector"),
-        )
-        .serve(make_svc);
-
-        #[cfg(not(feature = "tls"))]
-        let addr = SocketAddr::from_str(&self.addr).expect("can't parse host and port");
-        #[cfg(not(feature = "tls"))]
-        let srv = Server::bind(&addr).serve(make_svc);
-
-        if let Err(e) = srv.await {
-            error!("error running server: {}", e);
+        } else {
+            let make_svc = make_service_fn(move |_conn| {
+                let dav_server = dav_server.clone();
+                async move {
+                    let func = move |req| {
+                        let dav_server = dav_server.clone();
+                        async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
+                    };
+                    Ok::<_, Infallible>(service_fn(func))
+                }
+            });
+            let addr = SocketAddr::from_str(&self.addr).expect("can't parse host and port");
+            let srv = Server::bind(&addr).serve(make_svc);
+            if let Err(e) = srv.await {
+                error!("error running server: {}", e);
+            }
         }
     }
 }

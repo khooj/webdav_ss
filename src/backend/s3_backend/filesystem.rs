@@ -1,7 +1,5 @@
 use super::{
-    entries::{S3DirEntry, S3File},
-    metadata::S3MetaData,
-    partial_open_file::PartialOpenFile,
+    entries::S3DirEntry, metadata::S3MetaData, partial_open_file::PartialOpenFile,
     simple_open_file::S3SimpleOpenFile,
 };
 use crate::backend::normalized_path::NormalizedPath;
@@ -15,7 +13,6 @@ use s3::{
     Bucket,
 };
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
-use std::{io::Cursor, marker::PhantomData};
 use tracing::{debug, error, instrument, span, Instrument, Level};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{

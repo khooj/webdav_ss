@@ -57,6 +57,7 @@ start_all()
 machine.wait_for_unit("minio")
 machine.wait_for_open_port(9000)
 machine.wait_for_unit("webdav_ss.service")
+machine.wait_for_open_port(5000)
 machine.succeed("litmus http://localhost:5000/fs1")
 # FS backend fails on few tests in "locks" and "props" suites
 machine.succeed("TESTS=\"basic copymove http\" litmus http://localhost:5000/fs2")

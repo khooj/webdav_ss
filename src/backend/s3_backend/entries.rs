@@ -1,14 +1,9 @@
 use crate::backend::normalized_path::NormalizedPath;
 
 use super::metadata::S3MetaData;
-use bytes::Buf;
 use futures_util::FutureExt;
 use s3::Bucket;
-use std::io::{Cursor, SeekFrom};
-use std::time::SystemTime;
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use tracing::{debug, instrument};
-use webdav_handler::fs::{DavDirEntry, DavFile, DavMetaData, FsError, FsFuture, OpenOptions};
+use webdav_handler::fs::{DavDirEntry, DavFile, DavMetaData, FsFuture, OpenOptions};
 
 pub trait S3File: DavFile {
     fn new(

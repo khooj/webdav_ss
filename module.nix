@@ -6,7 +6,7 @@ let
 	webdav_ss_tls = pkg.rootCrate.build.override { features = [ "tls" ]; };
 	cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
 		app = {
-			inherit (cfg) host port;
+			inherit (cfg) host port tls key cert;
 		};
 
 		filesystems = cfg.filesystems;
@@ -36,6 +36,24 @@ with lib;
 			type = types.int;
 			description = "Listen port";
 			default = 5656;
+		};
+
+		tls = mkOption {
+			type = types.bool;
+			description = "Enable TLS";
+			default = false;
+		};
+
+		key = mkOption {
+			type = with types; nullOr (either string path);
+			description = "Path or string to key for TLS";
+			default = null;
+		};
+
+		cert = mkOption {
+			type = with types; nullOr (either string path);
+			description = "Path or string to cert for TLS";
+			default = null;
 		};
 
 		logLevel = mkOption {

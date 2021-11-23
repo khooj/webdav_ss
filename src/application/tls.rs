@@ -2,11 +2,11 @@ use anyhow::Result;
 use async_stream::stream;
 use core::task::{Context, Poll};
 use futures_util::Stream;
-use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
+use rustls_pemfile::{certs, rsa_private_keys};
 use std::{fs, io, pin::Pin, sync};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
-use tracing::{info, error};
+use tracing::{error, info};
 
 fn error(s: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, s)
