@@ -5,11 +5,18 @@ app:
   key: ssc/san-privatersa-key.key
   cert: ssc/san_server.crt
 filesystems:
+  # - mount_path: /
+  #   type: s3
+  #   region: us-east-1
+  #   url: http://localhost:9000
+  #   bucket: test
   - mount_path: /
     type: s3
-    region: us-east-1
-    url: http://localhost:9000
-    bucket: test
+    region: eu-central-1
+    url: https://eu-central-1.linodeobjects.com
+    bucket: khooj-webdav-storage
+    path_style: true
+    ensure_bucket: false
   - mount_path: /fs
     type: fs
     path: /tmp/fs

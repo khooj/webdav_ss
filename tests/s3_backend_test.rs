@@ -73,6 +73,8 @@ async fn test_s3_backend() {
                 region: "us-east-1".into(),
                 bucket: "test".into(),
                 url: format!("http://localhost:{}", 9000),
+                path_style: false,
+                ensure_bucket: true,
             },
         }],
     };

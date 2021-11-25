@@ -1639,7 +1639,7 @@ dependencies = [
 [[package]]
 name = "rust-s3"
 version = "0.26.3"
-source = "git+https://github.com/khooj/rust-s3?rev=0f499af0388687675c2c36b05bc9d21dd21c6340#0f499af0388687675c2c36b05bc9d21dd21c6340"
+source = "git+https://github.com/khooj/rust-s3?rev=db556125607842b223e68750854f0b0d39d9941f#db556125607842b223e68750854f0b0d39d9941f"
 dependencies = [
  "async-std",
  "aws-creds",

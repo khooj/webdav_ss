@@ -4546,8 +4546,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/khooj/rust-s3";
-          rev = "0f499af0388687675c2c36b05bc9d21dd21c6340";
-          sha256 = "0i7a1d078j4s26x703vyl08ws22p2m95192h8wq1pjvjsga19688";
+          rev = "db556125607842b223e68750854f0b0d39d9941f";
+          sha256 = "09sfp4dn0zwaqzavmg0wyavy2r95r1d58v8zd02lsv4fpg99qdkk";
         };
         libName = "s3";
         authors = [

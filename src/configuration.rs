@@ -38,6 +38,8 @@ pub enum Filesystem {
         bucket: String,
         region: String,
         url: String,
+        path_style: bool,
+        ensure_bucket: bool,
     },
 }
 

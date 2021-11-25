@@ -2,7 +2,7 @@ use super::{
     entries::S3DirEntry, metadata::S3MetaData, partial_open_file::PartialOpenFile,
     simple_open_file::S3SimpleOpenFile,
 };
-use crate::backend::normalized_path::NormalizedPath;
+use crate::{backend::normalized_path::NormalizedPath, configuration::Filesystem};
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
 use hyper::StatusCode;
@@ -31,28 +31,69 @@ pub struct S3Backend {
 
 impl S3Backend {
     #[instrument(level = "info", err)]
-    pub async fn new(url: &str, region: &str, bucket: &str) -> Result<Box<dyn DavFileSystem>> {
+    pub async fn new(config: Filesystem) -> Result<Box<dyn DavFileSystem>> {
+        let (bucket, region, url, path_style, ensure_bucket) = match config {
+            Filesystem::S3 {
+                bucket,
+                region,
+                url,
+                path_style,
+                ensure_bucket,
+            } => (bucket, region, url, path_style, ensure_bucket),
+            _ => return Err(anyhow!("unsupported config")),
+        };
         let url = url.to_owned();
         let region = Region::Custom {
             endpoint: url.clone(),
             region: region.parse()?,
         };
         let creds = Credentials::from_env()?;
-        let bucket = bucket.to_owned();
-        let config = BucketConfiguration::private();
-        let resp = Bucket::create(&bucket, region, creds, config)
-            .await
-            .expect("cant create bucket");
-        if !resp.success() && resp.response_code != 409 {
-            error!(response_code = resp.response_code, response_text = %resp.response_text);
-            return Err(anyhow!("cant create bucket"));
+        let bucket_name = bucket.to_owned();
+        let bucket = if path_style {
+            Bucket::new_with_path_style(&bucket_name, region.clone(), creds.clone())?
+        } else {
+            Bucket::new(&bucket_name, region.clone(), creds.clone())?
+        };
+
+        if ensure_bucket {
+            let mut config = BucketConfiguration::private();
+            config.set_location_constraint(region.clone());
+            let resp = Bucket::create(
+                &bucket_name,
+                region.clone(),
+                creds.clone(),
+                config,
+                path_style,
+            )
+            .await;
+            match resp {
+                Ok(k) => {
+                    if !k.success() && k.response_code != 409 {
+                        if S3Backend::check_bucket(&bucket).await.is_err() {
+                            error!(response_code = k.response_code, response_text = %k.response_text);
+                            return Err(anyhow!("unsuccessful response when creating bucket"));
+                        }
+                    }
+                }
+                Err(e) => {
+                    if S3Backend::check_bucket(&bucket).await.is_err() {
+                        error!(err = ?e);
+                        return Err(anyhow!("can't create bucket"));
+                    }
+                }
+            }
         }
-        let bucket = resp.bucket;
 
         Ok(Box::new(S3Backend {
             client: bucket,
             memfs: MemFs::new(),
         }) as Box<dyn DavFileSystem>)
+    }
+
+    async fn check_bucket(bucket: &Bucket) -> Result<()> {
+        let r = bucket.put_object(".check", &[]).await?;
+        bucket.delete_object(".check").await?;
+        Ok(())
     }
 
     #[instrument(level = "debug", skip(self), err)]

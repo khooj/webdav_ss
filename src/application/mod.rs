@@ -27,12 +27,7 @@ async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
             LocalFs::new(&path, false, false, false)
         }
         Filesystem::Mem => MemFs::new(),
-        Filesystem::S3 {
-            url,
-            region,
-            bucket,
-            ..
-        } => S3Backend::new(&url, &region, &bucket).await.unwrap(),
+        a @ Filesystem::S3 { .. } => S3Backend::new(a).await.unwrap(),
     }
 }
 
