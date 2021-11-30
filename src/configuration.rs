@@ -50,6 +50,13 @@ pub struct FilesystemType {
     pub mount_path: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum PropsStorage {
+    Sqlite { path: String },
+    Mem,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Configuration {
     pub app: Application,

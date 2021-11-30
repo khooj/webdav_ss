@@ -4,7 +4,6 @@ use super::{
     aggregate::AggregateBuilder,
     backend::s3_backend::S3Backend,
     configuration::{Configuration, Filesystem},
-    repository::MemoryRepository,
 };
 use hyper::{
     service::{make_service_fn, service_fn},
@@ -45,16 +44,14 @@ pub struct Application {
 impl Application {
     pub async fn build(config: Configuration) -> Application {
         let addr = format!("{}:{}", config.app.host, config.app.port);
-        let mut fs = AggregateBuilder::new(Box::new(MemoryRepository::new()));
+        let mut fs = AggregateBuilder::new();
 
         for fss in config.filesystems {
-            fs = fs
-                .add_route((&fss.mount_path, get_backend_by_type(fss.fs).await))
-                .unwrap();
+            fs = fs.add_route((&fss.mount_path, get_backend_by_type(fss.fs).await));
         }
 
         let dav_server = DavHandler::builder()
-            .filesystem(fs.build())
+            .filesystem(fs.build().expect("cant build aggregate"))
             .locksystem(MemLs::new())
             .build_handler();
 

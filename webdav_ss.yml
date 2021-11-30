@@ -10,15 +10,15 @@ filesystems:
   #   region: us-east-1
   #   url: http://localhost:9000
   #   bucket: test
+  # - mount_path: /
+  #   type: s3
+  #   region: eu-central-1
+  #   url: https://eu-central-1.linodeobjects.com
+  #   bucket: khooj-webdav-storage
+  #   path_style: true
+  #   ensure_bucket: false
   - mount_path: /
-    type: s3
-    region: eu-central-1
-    url: https://eu-central-1.linodeobjects.com
-    bucket: khooj-webdav-storage
-    path_style: true
-    ensure_bucket: false
-  - mount_path: /fs
     type: fs
-    path: /tmp/fs
+    path: /home/khooj/tmppics
   - mount_path: /mem
     type: mem

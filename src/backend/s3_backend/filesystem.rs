@@ -91,8 +91,8 @@ impl S3Backend {
     }
 
     async fn check_bucket(bucket: &Bucket) -> Result<()> {
-        let r = bucket.put_object(".check", &[]).await?;
-        bucket.delete_object(".check").await?;
+        let _ = bucket.put_object(".check", &[]).await?;
+        let _ = bucket.delete_object(".check").await?;
         Ok(())
     }
 
