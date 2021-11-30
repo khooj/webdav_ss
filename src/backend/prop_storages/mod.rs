@@ -6,7 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 use webdav_handler::fs::{DavProp, FsError};
 
-type PropResult<T> = Result<T, anyhow::Error>;
+type PropResult<T> = Result<T, FsError>;
 
 type PropFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -30,4 +30,17 @@ pub trait PropStorage: Send + Sync + Clone {
         path: &'a NormalizedPath,
         do_content: bool,
     ) -> PropFuture<PropResult<Vec<DavProp>>>;
+
+    fn remove_file<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<PropResult<()>>;
+    fn remove_dir<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<PropResult<()>>;
+    fn rename<'a>(
+        &'a self,
+        from: &'a NormalizedPath,
+        to: &'a NormalizedPath,
+    ) -> PropFuture<PropResult<()>>;
+    fn copy<'a>(
+        &'a self,
+        from: &'a NormalizedPath,
+        to: &'a NormalizedPath,
+    ) -> PropFuture<PropResult<()>>;
 }

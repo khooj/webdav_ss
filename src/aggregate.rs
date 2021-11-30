@@ -225,7 +225,10 @@ where
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            Ok(route.remove_file(&path).await?)
+            Ok(route
+                .remove_file(&path)
+                .await
+                .and(self.props.remove_file(&path.into()).await)?)
         }
         .boxed()
     }
@@ -234,7 +237,10 @@ where
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
             let (route, path) = self.find_route(&path)?;
-            Ok(route.remove_dir(&path).await?)
+            Ok(route
+                .remove_dir(&path)
+                .await
+                .and(self.props.remove_dir(&path.into()).await)?)
         }
         .boxed()
     }
@@ -244,7 +250,10 @@ where
         async move {
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
-            Ok(route.rename(&from, &to).await?)
+            Ok(route
+                .rename(&from, &to)
+                .await
+                .and(self.props.rename(&from.into(), &to.into()).await)?)
         }
         .boxed()
     }
@@ -254,7 +263,10 @@ where
         async move {
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
-            Ok(route.copy(&from, &to).await?)
+            Ok(route
+                .copy(&from, &to)
+                .await
+                .and(self.props.copy(&from.into(), &to.into()).await)?)
         }
         .boxed()
     }
@@ -287,13 +299,7 @@ where
         path: &'a DavPath,
         prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
-        async move {
-            self.props
-                .get_prop(&path.into(), prop)
-                .await
-                .map_err(|_| FsError::GeneralFailure)
-        }
-        .boxed()
+        async move { self.props.get_prop(&path.into(), prop).await }.boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -302,27 +308,17 @@ where
         path: &'a DavPath,
         do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
-        async move {
-            self.props
-                .get_props(&path.into(), do_content)
-                .await
-                .map_err(|_| FsError::GeneralFailure)
-        }
-        .boxed()
+        async move { self.props.get_props(&path.into(), do_content).await }.boxed()
     }
 }
 
 pub struct AggregateBuilder {
     routes: Vec<(String, Box<dyn DavFileSystem>)>,
-    storage: PropsStorage,
 }
 
 impl AggregateBuilder {
     pub fn new() -> Self {
-        AggregateBuilder {
-            routes: vec![],
-            storage: PropsStorage::Mem,
-        }
+        AggregateBuilder { routes: vec![] }
     }
 
     pub fn add_route(mut self, (route, fs): (&str, Box<dyn DavFileSystem>)) -> Self {
@@ -331,10 +327,7 @@ impl AggregateBuilder {
     }
 
     pub fn build(self) -> Result<Box<Aggregate<Memory>>> {
-        let mut agg = Aggregate::new(
-            Box::new(MemoryRepository::new()),
-            Memory::new(),
-        );
+        let mut agg = Aggregate::new(Box::new(MemoryRepository::new()), Memory::new());
         for (route, fs) in self.routes {
             agg.add_route((&route, fs))?;
         }

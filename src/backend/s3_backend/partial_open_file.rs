@@ -75,9 +75,6 @@ impl PartialOpenFile {
 
         {
             let b = self.cursor.chunk();
-            if b.len() == 0 {
-                return Ok(());
-            }
 
             let (resp, code) = match self
                 .client

@@ -39,9 +39,8 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
     }
 }
 
-#[cfg(not(feature = "tls"))]
 #[tokio::test]
-async fn test_s3_backend() {
+async fn s3_backend_test() {
     env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
 

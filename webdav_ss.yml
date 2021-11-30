@@ -5,11 +5,13 @@ app:
   key: ssc/san-privatersa-key.key
   cert: ssc/san_server.crt
 filesystems:
-  # - mount_path: /
-  #   type: s3
-  #   region: us-east-1
-  #   url: http://localhost:9000
-  #   bucket: test
+  - mount_path: /
+    type: s3
+    region: eu-central-1
+    url: http://localhost:9000
+    bucket: test
+    path_style: false
+    ensure_bucket: true
   # - mount_path: /
   #   type: s3
   #   region: eu-central-1
@@ -17,8 +19,8 @@ filesystems:
   #   bucket: khooj-webdav-storage
   #   path_style: true
   #   ensure_bucket: false
-  - mount_path: /
-    type: fs
-    path: /home/khooj/tmppics
-  - mount_path: /mem
-    type: mem
+  # - mount_path: /
+  #   type: fs
+  #   path: /home/khooj/tmppics
+  # - mount_path: /
+  #   type: mem

@@ -1,44 +1,50 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{Arc, Mutex},
 };
 
 use super::{PropFuture, PropResult, PropStorage};
 use crate::backend::normalized_path::NormalizedPath;
-use anyhow::anyhow;
 use futures_util::FutureExt;
 use hyper::StatusCode;
 use std::cell::RefCell;
-use webdav_handler::fs::DavProp;
+use tracing::{debug, span, Instrument, Level};
+use webdav_handler::fs::{DavProp, FsError};
 
 #[derive(Clone)]
 pub struct Memory {
     data: Arc<Mutex<RefCell<HashMap<String, DavProp>>>>,
-    have_prop: Arc<Mutex<RefCell<HashSet<String>>>>,
 }
 
 impl Memory {
     pub fn new() -> Self {
         Memory {
             data: Arc::new(Mutex::new(RefCell::new(HashMap::new()))),
-            have_prop: Arc::new(Mutex::new(RefCell::new(HashSet::new()))),
         }
     }
 
     fn get_prop_string(path: &NormalizedPath, prop: &DavProp) -> String {
         let ns = prop.namespace.clone().unwrap_or("".into());
-        let prefix = prop.prefix.clone().unwrap_or("".into());
-        format!("{}.{}.{}.{}", path.as_ref(), ns, prefix, prop.name)
+        format!("{}.{}.{}", path.as_ref(), ns, prop.name)
     }
 }
 
 impl PropStorage for Memory {
     fn have_props<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<bool> {
+        let span = span!(Level::INFO, "Memory::have_props");
         async move {
-            let g = self.have_prop.lock().unwrap();
-            let r = g.borrow().contains(&path.to_string());
-            r
+            let g = self.data.lock().unwrap();
+            let b = g.borrow();
+            for k in b.keys() {
+                if k.starts_with(path.as_ref()) {
+                    debug!(contains = true, path = %path);
+                    return true;
+                }
+            }
+            debug!(contains = false, path = %path);
+            false
         }
+        .instrument(span)
         .boxed()
     }
 
@@ -47,26 +53,28 @@ impl PropStorage for Memory {
         path: &'a NormalizedPath,
         patch: Vec<(bool, DavProp)>,
     ) -> PropFuture<PropResult<Vec<(StatusCode, DavProp)>>> {
+        let span = span!(Level::INFO, "Memory::patch_props");
         async move {
-            let have_prop = self.have_prop.lock().unwrap();
             let data = self.data.lock().unwrap();
             let mut r = vec![];
             for (set, prop) in patch {
                 let k = Memory::get_prop_string(path, &prop);
+                debug!(set = set, key = %k, prop = ?prop);
+                let mut prop_c = prop.clone();
+                prop_c.xml = None;
                 if set {
                     let mut b = data.borrow_mut();
                     let v = b.entry(k.clone()).or_insert(prop.clone());
-                    *v = prop.clone();
-                    have_prop.borrow_mut().insert(k);
+                    *v = prop;
                 } else {
                     data.borrow_mut().remove(&k);
-                    have_prop.borrow_mut().remove(&k);
                 }
-                r.push((StatusCode::OK, prop));
+                r.push((StatusCode::OK, prop_c));
             }
 
             Ok(r)
         }
+        .instrument(span)
         .boxed()
     }
 
@@ -75,35 +83,154 @@ impl PropStorage for Memory {
         path: &'a NormalizedPath,
         prop: DavProp,
     ) -> PropFuture<PropResult<Vec<u8>>> {
+        let span = span!(Level::INFO, "Memory::get_prop");
         async move {
             let data = self.data.lock().unwrap();
             let k = Memory::get_prop_string(path, &prop);
-            let r = data.borrow()
+            let r = data
+                .borrow()
                 .get(&k)
-                .ok_or(anyhow!("prop not found"))
-                .map(|e| e.xml.clone().unwrap_or(vec![]));
+                .ok_or(FsError::NotFound)
+                .and_then(|e| e.xml.clone().ok_or(FsError::NotFound));
+            debug!(path = %path, result = ?r, prop = ?prop);
             r
         }
+        .instrument(span)
         .boxed()
     }
 
     fn get_props<'a>(
         &'a self,
         path: &'a NormalizedPath,
-        _do_content: bool,
+        do_content: bool,
     ) -> PropFuture<PropResult<Vec<DavProp>>> {
+        let span = span!(Level::INFO, "Memory::get_props");
         async move {
             let data = self.data.lock().unwrap();
             let mut r = vec![];
-            for k in data.borrow().keys() {
+            let b = data.borrow();
+            for k in b.keys() {
                 if k.starts_with(path.as_ref()) {
-                    let v = data.borrow().get(k).unwrap().clone();
+                    let mut v = b.get(k).unwrap().clone();
+                    if !do_content {
+                        v.xml = None;
+                    }
                     r.push(v);
                 }
             }
+            debug!(path = %path, result = ?r, do_content = do_content);
 
             Ok(r)
         }
+        .instrument(span)
+        .boxed()
+    }
+
+    fn remove_file<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<PropResult<()>> {
+        let span = span!(Level::INFO, "Memory::remove_file");
+        async move {
+            let data = self.data.lock().unwrap();
+            let mut b = data.borrow_mut();
+            let mut rm = None;
+            for k in b.keys() {
+                if k.starts_with(path.as_ref()) {
+                    rm = Some(k.clone());
+                    break;
+                }
+            }
+
+            debug!(path = %path);
+            if rm.is_none() {
+                Ok(())
+            } else {
+                b.remove(&rm.unwrap());
+                Ok(())
+            }
+        }
+        .instrument(span)
+        .boxed()
+    }
+
+    fn remove_dir<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<PropResult<()>> {
+        let span = span!(Level::INFO, "Memory::remove_dir");
+        async move {
+            let data = self.data.lock().unwrap();
+            let mut b = data.borrow_mut();
+            let mut rm = None;
+            for k in b.keys() {
+                if k.starts_with(path.as_ref()) {
+                    rm = Some(k.clone());
+                    break;
+                }
+            }
+
+            debug!(path = %path);
+            if rm.is_none() {
+                Ok(())
+            } else {
+                b.remove(&rm.unwrap());
+                Ok(())
+            }
+        }
+        .instrument(span)
+        .boxed()
+    }
+
+    fn rename<'a>(
+        &'a self,
+        from: &'a NormalizedPath,
+        to: &'a NormalizedPath,
+    ) -> PropFuture<PropResult<()>> {
+        let span = span!(Level::INFO, "Memory::rename");
+        async move {
+            let data = self.data.lock().unwrap();
+            let mut b = data.borrow_mut();
+            let mut rn = vec![];
+            for k in b.keys() {
+                if k.starts_with(from.as_ref()) {
+                    let pp: NormalizedPath = k.strip_prefix(from.as_ref()).unwrap().into();
+                    let pp = format!("{}{}", to.as_ref(), pp.as_ref());
+                    rn.push((k.clone(), pp));
+                }
+            }
+
+            for (k, pp) in rn {
+                debug!(from = %k, to = %pp);
+                let prop = b.remove(&k).unwrap();
+                b.entry(pp.to_string()).or_insert(prop);
+            }
+            Ok(())
+        }
+        .instrument(span)
+        .boxed()
+    }
+
+    fn copy<'a>(
+        &'a self,
+        from: &'a NormalizedPath,
+        to: &'a NormalizedPath,
+    ) -> PropFuture<PropResult<()>> {
+        let span = span!(Level::INFO, "Memory::copy");
+        async move {
+            let data = self.data.lock().unwrap();
+            let mut b = data.borrow_mut();
+            let mut cp = vec![];
+            for k in b.keys() {
+                if k.starts_with(from.as_ref()) {
+                    let pp: NormalizedPath = k.strip_prefix(from.as_ref()).unwrap().into();
+                    let pp = format!("{}{}", to.as_ref(), pp.as_ref());
+                    cp.push((k.clone(), pp.to_string()));
+                }
+            }
+
+            for (k, pp) in cp {
+                debug!(from = %k, to = %pp);
+                let prop = b.get(&k).unwrap().clone();
+                b.entry(pp.to_string()).or_insert(prop);
+            }
+            Ok(())
+        }
+        .instrument(span)
         .boxed()
     }
 }
