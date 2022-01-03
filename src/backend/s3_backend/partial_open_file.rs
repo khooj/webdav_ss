@@ -187,16 +187,6 @@ impl DavFile for PartialOpenFile {
                 return Err(FsError::GeneralFailure);
             }
 
-            let tags = self.metadata.as_metadata();
-            let (_, code) = self
-                .client
-                .put_object_tagging(&self.path.to_string(), &tags[..])
-                .await
-                .unwrap();
-            if code != 200 {
-                debug!(reason = "tag object unsuccessful", code = code);
-                return Err(FsError::GeneralFailure);
-            }
             Ok(())
         }
         .boxed()

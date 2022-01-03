@@ -30,6 +30,7 @@ rustls = { version = "0.20" }
 rustls-pemfile = { version = "0.2" }
 tokio-rustls = { version = "0.22" }
 async-stream = { version = "0.3" }
+serde_yaml = "0.8"
 
 [dev-dependencies]
 testcontainers = "0.12"

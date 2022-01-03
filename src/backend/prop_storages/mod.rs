@@ -1,4 +1,5 @@
 pub mod mem;
+pub mod yaml;
 
 use super::normalized_path::NormalizedPath;
 use hyper::StatusCode;
@@ -13,11 +14,11 @@ type PropFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub trait PropStorage: Send + Sync + Clone {
     fn have_props<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<bool>;
 
-    fn patch_props<'a>(
+    fn patch_prop<'a>(
         &'a self,
         path: &'a NormalizedPath,
-        patch: Vec<(bool, DavProp)>,
-    ) -> PropFuture<PropResult<Vec<(StatusCode, DavProp)>>>;
+        patch: (bool, DavProp),
+    ) -> PropFuture<PropResult<(StatusCode, DavProp)>>;
 
     fn get_prop<'a>(
         &'a self,

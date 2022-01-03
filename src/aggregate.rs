@@ -285,10 +285,17 @@ where
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
         async move {
-            self.props
-                .patch_props(&path.into(), patch)
-                .await
-                .map_err(|_| FsError::GeneralFailure)
+            let mut r = vec![];
+            let path: NormalizedPath = path.into();
+            for (set, prop) in patch {
+                let pr = self
+                    .props
+                    .patch_prop(&path, (set, prop))
+                    .await
+                    .map_err(|_| FsError::GeneralFailure)?;
+                r.push(pr);
+            }
+            Ok(r)
         }
         .boxed()
     }
@@ -326,8 +333,8 @@ impl AggregateBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Box<Aggregate<Memory>>> {
-        let mut agg = Aggregate::new(Box::new(MemoryRepository::new()), Memory::new());
+    pub fn build<T>(self, prop_storage: T) -> Result<Box<Aggregate<T>>> {
+        let mut agg = Aggregate::new(Box::new(MemoryRepository::new()), prop_storage);
         for (route, fs) in self.routes {
             agg.add_route((&route, fs))?;
         }
@@ -347,7 +354,7 @@ mod tests {
 
     #[test]
     fn check_find_route() -> Result<()> {
-        let mut fs = AggregateBuilder::new().build()?;
+        let mut fs = AggregateBuilder::new().build(Memory::new())?;
         fs.add_route(("/tmp/fs/fs1", MemFs::new()))?;
         fs.add_route(("/tmp/fs1", MemFs::new()))?;
 
@@ -383,7 +390,7 @@ mod tests {
 
     #[test]
     fn check_find_level() -> Result<()> {
-        let mut fs = AggregateBuilder::new().build()?;
+        let mut fs = AggregateBuilder::new().build(Memory::new())?;
         add_route(&mut fs, "/fs1");
         add_route(&mut fs, "/fs2");
         add_route(&mut fs, "/tmp/fs1");

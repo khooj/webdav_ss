@@ -1858,6 +1858,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml"
+version = "0.8.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4a521f2940385c165a24ee286aa8599633d162077a54bdcae2a6fd5a7bfa7a0"
+dependencies = [
+ "indexmap",
+ "ryu",
+ "serde",
+ "yaml-rust",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2529,6 +2541,7 @@ dependencies = [
  "rustls 0.20.0",
  "rustls-pemfile",
  "serde",
+ "serde_yaml",
  "testcontainers",
  "tokio",
  "tokio-rustls",
