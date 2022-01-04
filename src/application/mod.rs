@@ -1,5 +1,3 @@
-mod tls;
-
 use crate::{
     backend::prop_storages::{mem::Memory, yaml::Yaml, PropStorage},
     configuration::PropsStorage,
@@ -15,7 +13,6 @@ use hyper::{
     Server,
 };
 use std::{convert::Infallible, net::SocketAddr, path::PathBuf, str::FromStr};
-use tls::build_tls;
 use tracing::{error, instrument};
 use webdav_handler::memls::MemLs;
 use webdav_handler::DavHandler;
@@ -42,15 +39,9 @@ fn get_props_storage_by_conf(p: PropsStorage) -> Box<dyn PropStorage> {
     }
 }
 
-struct KeyCert {
-    key: String,
-    cert: String,
-}
-
 pub struct Application {
     addr: String,
     dav_server: DavHandler,
-    tls: Option<KeyCert>,
 }
 
 impl Application {
@@ -71,64 +62,27 @@ impl Application {
             .locksystem(MemLs::new())
             .build_handler();
 
-        let mut tls = None;
-        if config.app.tls {
-            tls = Some(KeyCert {
-                key: config.app.key.unwrap(),
-                cert: config.app.cert.unwrap(),
-            });
-        }
-
-        Application {
-            addr,
-            dav_server,
-            tls,
-        }
+        Application { addr, dav_server }
     }
 
     #[instrument(skip(self))]
     pub async fn run(self) {
         let dav_server = self.dav_server;
 
-        // rust inherit different signatures for make_svc so for simple solution we just copy-paste it for now.
-        if self.tls.is_some() {
-            let make_svc = make_service_fn(move |_conn| {
-                let dav_server = dav_server.clone();
-                async move {
-                    let func = move |req| {
-                        let dav_server = dav_server.clone();
-                        async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
-                    };
-                    Ok::<_, Infallible>(service_fn(func))
-                }
-            });
-            let tls = self.tls.unwrap();
-            let srv = Server::builder(
-                build_tls(&self.addr, &tls.cert, &tls.key)
-                    .await
-                    .expect("can't build tls connector"),
-            )
-            .serve(make_svc);
-
-            if let Err(e) = srv.await {
-                error!("error running server: {}", e);
+        let make_svc = make_service_fn(move |_conn| {
+            let dav_server = dav_server.clone();
+            async move {
+                let func = move |req| {
+                    let dav_server = dav_server.clone();
+                    async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
+                };
+                Ok::<_, Infallible>(service_fn(func))
             }
-        } else {
-            let make_svc = make_service_fn(move |_conn| {
-                let dav_server = dav_server.clone();
-                async move {
-                    let func = move |req| {
-                        let dav_server = dav_server.clone();
-                        async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
-                    };
-                    Ok::<_, Infallible>(service_fn(func))
-                }
-            });
-            let addr = SocketAddr::from_str(&self.addr).expect("can't parse host and port");
-            let srv = Server::bind(&addr).serve(make_svc);
-            if let Err(e) = srv.await {
-                error!("error running server: {}", e);
-            }
+        });
+        let addr = SocketAddr::from_str(&self.addr).expect("can't parse host and port");
+        let srv = Server::bind(&addr).serve(make_svc);
+        if let Err(e) = srv.await {
+            error!("error running server: {}", e);
         }
     }
 }
