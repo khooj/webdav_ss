@@ -1,6 +1,7 @@
 use futures_util::FutureExt;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
+use webdav_handler::fs::DavProp;
 
 use super::{mem::Memory, PropStorage};
 
@@ -20,10 +21,44 @@ pub struct Yaml {
 
 impl Yaml {
     pub fn new(fp: PathBuf) -> Box<dyn PropStorage> {
-        Box::new(Yaml {
+        let mut m = Yaml {
             filepath: fp,
             mem: Memory::new_unboxed(),
-        }) as Box<dyn PropStorage>
+        };
+
+        if std::fs::metadata(&m.filepath).is_ok() {
+            m.load().expect("can't load yaml props");
+        }
+        Box::new(m) as Box<dyn PropStorage>
+    }
+
+    fn load(&mut self) -> std::io::Result<()> {
+        use std::io::{Error, ErrorKind};
+
+        let mut f = std::fs::OpenOptions::new();
+        let f = f.read(true).open(&self.filepath)?;
+        let data: HashMap<String, Prop> =
+            serde_yaml::from_reader(f).map_err(|e| Error::new(ErrorKind::Other, e))?;
+
+        for (k, v) in &data {
+            let _ = self
+                .mem
+                .add_prop(
+                    &k.clone().into(),
+                    (
+                        true,
+                        DavProp {
+                            name: v.name.clone(),
+                            namespace: v.namespace.clone(),
+                            prefix: v.prefix.clone(),
+                            xml: v.value.clone(),
+                        },
+                    ),
+                )
+                .map_err(|e| Error::new(ErrorKind::Other, e))?;
+        }
+
+        Ok(())
     }
 
     fn dump(&self) -> super::PropResult<()> {

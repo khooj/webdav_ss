@@ -8,7 +8,9 @@ use testcontainers::{
 use tokio::process::*;
 use webdav_ss::{
     application::Application,
-    configuration::{Application as ConfigApplication, Configuration, Filesystem, FilesystemType},
+    configuration::{
+        Application as ConfigApplication, Configuration, Filesystem, FilesystemType, PropsStorage,
+    },
 };
 
 struct ContainerDrop<'d, D: Docker, I: Image> {
@@ -41,7 +43,7 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
 
 #[tokio::test]
 async fn s3_backend_test() {
-    env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
+    // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));
@@ -76,8 +78,17 @@ async fn s3_backend_test() {
                 ensure_bucket: true,
             },
         }],
-        prop_storage: None,
+        prop_storage: Some(PropsStorage::Yaml {
+            path: "/tmp/webdav_props.yml".into(),
+        }),
     };
+
+    if std::fs::metadata("/tmp/webdav_props.yml")
+        .map(|_| true)
+        .unwrap_or(false)
+    {
+        let _ = std::fs::remove_file("/tmp/webdav_props.yml");
+    }
 
     env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
     env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");

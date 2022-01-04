@@ -37,6 +37,26 @@ impl Memory {
         let ns = prop.namespace.clone().unwrap_or("".into());
         format!("{}.{}.{}", path.as_ref(), ns, prop.name)
     }
+
+    pub fn add_prop(
+        &self,
+        path: &NormalizedPath,
+        (set, prop): (bool, DavProp),
+    ) -> PropResult<(StatusCode, DavProp)> {
+        let data = self.data.lock().unwrap();
+        let k = Memory::get_prop_string(path, &prop);
+        let mut p_c = prop.clone();
+        p_c.xml = None;
+        if set {
+            let mut b = data.borrow_mut();
+            let v = b.entry(k.clone()).or_insert(prop.clone());
+            *v = prop;
+        } else {
+            data.borrow_mut().remove(&k);
+        }
+
+        Ok((StatusCode::OK, p_c))
+    }
 }
 
 impl PropStorage for Memory {
@@ -63,22 +83,7 @@ impl PropStorage for Memory {
         path: &'a NormalizedPath,
         (set, prop): (bool, DavProp),
     ) -> PropFuture<PropResult<(StatusCode, DavProp)>> {
-        async move {
-            let data = self.data.lock().unwrap();
-            let k = Memory::get_prop_string(path, &prop);
-            let mut p_c = prop.clone();
-            p_c.xml = None;
-            if set {
-                let mut b = data.borrow_mut();
-                let v = b.entry(k.clone()).or_insert(prop.clone());
-                *v = prop;
-            } else {
-                data.borrow_mut().remove(&k);
-            }
-
-            Ok((StatusCode::OK, p_c))
-        }
-        .boxed()
+        async move { self.add_prop(path, (set, prop)) }.boxed()
     }
 
     fn get_prop<'a>(
