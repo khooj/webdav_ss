@@ -1,18 +1,12 @@
-use crate::{
-    backend::prop_storages::{mem::Memory, PropStorage},
-    configuration::PropsStorage,
-    repository::MemoryRepository,
-};
+use crate::backend::prop_storages::{mem::Memory, PropStorage};
 
 use super::backend::normalized_path::NormalizedPath;
-use super::repository::Repository;
 use anyhow::{anyhow, Result};
 use futures_util::FutureExt;
 use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{Arc, Mutex},
 };
 use tracing::{debug, instrument, span, Instrument, Level};
 use webdav_handler::{
@@ -28,18 +22,16 @@ type Routes = HashMap<String, Box<dyn DavFileSystem>>;
 const ENC: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.').remove(b'/').remove(b'"');
 
 #[derive(Clone)]
-pub struct Aggregate<T> {
+pub struct Aggregate {
     filesystems: Routes,
-    props: T,
-    repository: Arc<Mutex<Box<dyn Repository>>>,
+    props: Box<dyn PropStorage>,
 }
 
-impl<T> Aggregate<T> {
-    pub fn new(repository: Box<dyn Repository>, props: T) -> Self {
+impl Aggregate {
+    pub fn new(props: Box<dyn PropStorage>) -> Self {
         Aggregate {
             filesystems: Routes::new(),
             props,
-            repository: Arc::new(Mutex::new(repository)),
         }
     }
 
@@ -155,10 +147,7 @@ impl DavDirEntry for AggregateDirEntry {
     }
 }
 
-impl<T> DavFileSystem for Aggregate<T>
-where
-    T: PropStorage + 'static,
-{
+impl DavFileSystem for Aggregate {
     #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         async move {
@@ -285,10 +274,17 @@ where
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
         async move {
-            self.props
-                .patch_props(&path.into(), patch)
-                .await
-                .map_err(|_| FsError::GeneralFailure)
+            let mut r = vec![];
+            let path: NormalizedPath = path.into();
+            for (set, prop) in patch {
+                let pr = self
+                    .props
+                    .patch_prop(&path, (set, prop))
+                    .await
+                    .map_err(|_| FsError::GeneralFailure)?;
+                r.push(pr);
+            }
+            Ok(r)
         }
         .boxed()
     }
@@ -314,11 +310,15 @@ where
 
 pub struct AggregateBuilder {
     routes: Vec<(String, Box<dyn DavFileSystem>)>,
+    props: Box<dyn PropStorage>,
 }
 
 impl AggregateBuilder {
     pub fn new() -> Self {
-        AggregateBuilder { routes: vec![] }
+        AggregateBuilder {
+            routes: vec![],
+            props: Memory::new(),
+        }
     }
 
     pub fn add_route(mut self, (route, fs): (&str, Box<dyn DavFileSystem>)) -> Self {
@@ -326,8 +326,13 @@ impl AggregateBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Box<Aggregate<Memory>>> {
-        let mut agg = Aggregate::new(Box::new(MemoryRepository::new()), Memory::new());
+    pub fn set_props_storage(mut self, props: Box<dyn PropStorage>) -> Self {
+        self.props = props;
+        self
+    }
+
+    pub fn build(self) -> Result<Box<Aggregate>> {
+        let mut agg = Aggregate::new(self.props);
         for (route, fs) in self.routes {
             agg.add_route((&route, fs))?;
         }
@@ -377,7 +382,7 @@ mod tests {
         Ok(())
     }
 
-    fn add_route<T>(fs: &mut Box<Aggregate<T>>, route: &str) {
+    fn add_route(fs: &mut Box<Aggregate>, route: &str) {
         let _ = fs.add_route((route, MemFs::new()));
     }
 

@@ -1,5 +1,10 @@
 mod tls;
 
+use crate::{
+    backend::prop_storages::{mem::Memory, yaml::Yaml, PropStorage},
+    configuration::PropsStorage,
+};
+
 use super::{
     aggregate::AggregateBuilder,
     backend::s3_backend::S3Backend,
@@ -9,7 +14,7 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Server,
 };
-use std::{convert::Infallible, net::SocketAddr, str::FromStr};
+use std::{convert::Infallible, net::SocketAddr, path::PathBuf, str::FromStr};
 use tls::build_tls;
 use tracing::{error, instrument};
 use webdav_handler::memls::MemLs;
@@ -27,6 +32,13 @@ async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
         }
         Filesystem::Mem => MemFs::new(),
         a @ Filesystem::S3 { .. } => S3Backend::new(a).await.unwrap(),
+    }
+}
+
+fn get_props_storage_by_conf(p: PropsStorage) -> Box<dyn PropStorage> {
+    match p {
+        PropsStorage::Yaml { path } => Yaml::new(PathBuf::from_str(&path).unwrap()),
+        PropsStorage::Mem => Memory::new(),
     }
 }
 
@@ -49,6 +61,10 @@ impl Application {
         for fss in config.filesystems {
             fs = fs.add_route((&fss.mount_path, get_backend_by_type(fss.fs).await));
         }
+
+        fs = fs.set_props_storage(get_props_storage_by_conf(
+            config.prop_storage.unwrap_or(PropsStorage::Mem),
+        ));
 
         let dav_server = DavHandler::builder()
             .filesystem(fs.build().expect("cant build aggregate"))

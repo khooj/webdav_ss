@@ -53,7 +53,7 @@ pub struct FilesystemType {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum PropsStorage {
-    Sqlite { path: String },
+    Yaml { path: String },
     Mem,
 }
 
@@ -61,6 +61,7 @@ pub enum PropsStorage {
 pub struct Configuration {
     pub app: Application,
     pub filesystems: Vec<FilesystemType>,
+    pub prop_storage: Option<PropsStorage>,
 }
 
 impl Configuration {

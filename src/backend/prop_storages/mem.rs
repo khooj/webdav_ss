@@ -17,15 +17,45 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new() -> Self {
+    pub fn new() -> Box<dyn PropStorage> {
+        Box::new(Memory::new_unboxed()) as Box<dyn PropStorage>
+    }
+
+    pub fn new_unboxed() -> Memory {
         Memory {
             data: Arc::new(Mutex::new(RefCell::new(HashMap::new()))),
         }
     }
 
+    pub fn get_all_props(&self) -> HashMap<String, DavProp> {
+        let g = self.data.lock().unwrap();
+        let b = g.borrow();
+        b.clone()
+    }
+
     fn get_prop_string(path: &NormalizedPath, prop: &DavProp) -> String {
         let ns = prop.namespace.clone().unwrap_or("".into());
         format!("{}.{}.{}", path.as_ref(), ns, prop.name)
+    }
+
+    pub fn add_prop(
+        &self,
+        path: &NormalizedPath,
+        (set, prop): (bool, DavProp),
+    ) -> PropResult<(StatusCode, DavProp)> {
+        let data = self.data.lock().unwrap();
+        let k = Memory::get_prop_string(path, &prop);
+        let mut p_c = prop.clone();
+        p_c.xml = None;
+        if set {
+            let mut b = data.borrow_mut();
+            let v = b.entry(k.clone()).or_insert(prop.clone());
+            *v = prop;
+        } else {
+            data.borrow_mut().remove(&k);
+        }
+
+        Ok((StatusCode::OK, p_c))
     }
 }
 
@@ -48,34 +78,12 @@ impl PropStorage for Memory {
         .boxed()
     }
 
-    fn patch_props<'a>(
+    fn patch_prop<'a>(
         &'a self,
         path: &'a NormalizedPath,
-        patch: Vec<(bool, DavProp)>,
-    ) -> PropFuture<PropResult<Vec<(StatusCode, DavProp)>>> {
-        let span = span!(Level::INFO, "Memory::patch_props");
-        async move {
-            let data = self.data.lock().unwrap();
-            let mut r = vec![];
-            for (set, prop) in patch {
-                let k = Memory::get_prop_string(path, &prop);
-                debug!(set = set, key = %k, prop = ?prop);
-                let mut prop_c = prop.clone();
-                prop_c.xml = None;
-                if set {
-                    let mut b = data.borrow_mut();
-                    let v = b.entry(k.clone()).or_insert(prop.clone());
-                    *v = prop;
-                } else {
-                    data.borrow_mut().remove(&k);
-                }
-                r.push((StatusCode::OK, prop_c));
-            }
-
-            Ok(r)
-        }
-        .instrument(span)
-        .boxed()
+        (set, prop): (bool, DavProp),
+    ) -> PropFuture<PropResult<(StatusCode, DavProp)>> {
+        async move { self.add_prop(path, (set, prop)) }.boxed()
     }
 
     fn get_prop<'a>(

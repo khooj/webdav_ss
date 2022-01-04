@@ -47,6 +47,7 @@ impl S3Backend {
             endpoint: url.clone(),
             region: region.parse()?,
         };
+
         let creds = Credentials::from_env()?;
         let bucket_name = bucket.to_owned();
         let bucket = if path_style {
@@ -98,18 +99,9 @@ impl S3Backend {
 
     #[instrument(level = "debug", skip(self), err)]
     async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<S3MetaData>, FsError> {
-        let mut tags = Some(Tagging {
-            tag_set: TagSet { tags: vec![] },
-        });
-
         // root dir always exist
         if path.starts_with("/") && path.ends_with("/") {
-            return Ok(Box::new(S3MetaData::extract_from_tags(
-                0,
-                "".into(),
-                tags.unwrap(),
-                true,
-            )));
+            return Ok(Box::new(S3MetaData::extract_from_tags(0, "".into(), true)));
         }
 
         let mut is_col = false;
@@ -134,22 +126,10 @@ impl S3Backend {
 
         let head = head.unwrap();
 
-        if !is_col {
-            let (t, code) = self.client.get_object_tagging(head.1).await.unwrap();
-            tags = t;
-
-            if code != 200 {
-                tags = Some(Tagging {
-                    tag_set: TagSet { tags: vec![] },
-                });
-            }
-        }
-
         let len = head.0.content_length.unwrap_or(0i64) as u64;
         Ok(Box::new(S3MetaData::extract_from_tags(
             len,
             path.into(),
-            tags.unwrap(),
             is_col,
         )))
     }
@@ -467,24 +447,9 @@ impl DavFileSystem for S3Backend {
             }
 
             debug!(is_new = %options.create, path = ?path);
-            let (mut tags, code) = self.client.get_object_tagging(path.as_ref()).await.unwrap();
 
-            if code != 200 {
-                tags = Some(Tagging {
-                    tag_set: TagSet { tags: vec![] },
-                });
-            }
-
-            debug!(tags = ?tags);
             let len = head.content_length.unwrap_or(0i64) as u64;
-            let metadata = S3MetaData::extract_from_tags(
-                len,
-                path.clone().into(),
-                tags.unwrap_or(Tagging {
-                    tag_set: TagSet { tags: vec![] },
-                }),
-                false,
-            );
+            let metadata = S3MetaData::extract_from_tags(len, path.clone().into(), false);
 
             if options.create {
                 Ok(Box::new(
@@ -595,33 +560,6 @@ impl DavFileSystem for S3Backend {
         let span = span!(Level::INFO, "S3Backend::patch_props");
         async move {
             return Err(FsError::NotImplemented);
-            let path: NormalizedPath = path.into();
-            let mut metadata = self.metadata_info(path.clone()).await?;
-            let mut result = vec![];
-
-            debug!(prop = ?patch);
-            for (set, p) in patch {
-                let pp = p.clone();
-                let status = if set {
-                    metadata.save_davprop(p);
-                    StatusCode::OK
-                } else {
-                    metadata.remove_davprop(p);
-                    StatusCode::OK
-                };
-                result.push((status, pp));
-            }
-
-            let tags = metadata.as_metadata();
-            let (_, code) = match self.client.put_object_tagging(&path, &tags[..]).await {
-                Err(_) => return Err(FsError::GeneralFailure),
-                Ok(k) => k,
-            };
-            if code != 200 {
-                return Err(FsError::GeneralFailure);
-            }
-
-            Ok(result)
         }
         .instrument(span)
         .boxed()
@@ -635,9 +573,6 @@ impl DavFileSystem for S3Backend {
         let span = span!(Level::INFO, "S3Backend::get_prop");
         async move {
             return Err(FsError::NotImplemented);
-            let path: NormalizedPath = path.into();
-            let metadata = self.metadata_info(path).await?;
-            Ok(metadata.get_prop(prop).unwrap_or(vec![]))
         }
         .instrument(span)
         .boxed()
@@ -651,12 +586,6 @@ impl DavFileSystem for S3Backend {
         let span = span!(Level::INFO, "S3Backend::get_prop");
         async move {
             return Err(FsError::NotImplemented);
-            let path: NormalizedPath = path.into();
-            let metadata = self.metadata_info(path).await?;
-            if let Ok(k) = metadata.as_davprops() {
-                return Ok(k);
-            }
-            Err(FsError::GeneralFailure)
         }
         .instrument(span)
         .boxed()
