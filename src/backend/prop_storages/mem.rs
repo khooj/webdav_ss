@@ -17,7 +17,11 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new() -> Self {
+    pub fn new() -> Box<dyn PropStorage> {
+        Box::new(Memory::new_unboxed()) as Box<dyn PropStorage>
+    }
+
+    pub fn new_unboxed() -> Memory {
         Memory {
             data: Arc::new(Mutex::new(RefCell::new(HashMap::new()))),
         }

@@ -11,7 +11,23 @@ type PropResult<T> = Result<T, FsError>;
 
 type PropFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-pub trait PropStorage: Send + Sync + Clone {
+pub trait BoxClonePropStorage {
+    fn box_clone(&self) -> Box<dyn PropStorage>;
+}
+
+impl Clone for Box<dyn PropStorage> {
+    fn clone(&self) -> Box<dyn PropStorage> {
+        self.box_clone()
+    }
+}
+
+impl<Storage: Clone + PropStorage + 'static> BoxClonePropStorage for Storage {
+    fn box_clone(&self) -> Box<dyn PropStorage> {
+        Box::new((*self).clone())
+    }
+}
+
+pub trait PropStorage: Send + Sync + BoxClonePropStorage {
     fn have_props<'a>(&'a self, path: &'a NormalizedPath) -> PropFuture<bool>;
 
     fn patch_prop<'a>(

@@ -61,6 +61,7 @@ pub enum PropsStorage {
 pub struct Configuration {
     pub app: Application,
     pub filesystems: Vec<FilesystemType>,
+    pub prop_storage: Option<PropsStorage>,
 }
 
 impl Configuration {

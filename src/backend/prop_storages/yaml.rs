@@ -19,11 +19,11 @@ pub struct Yaml {
 }
 
 impl Yaml {
-    pub fn new(fp: PathBuf) -> Self {
-        Yaml {
+    pub fn new(fp: PathBuf) -> Box<dyn PropStorage> {
+        Box::new(Yaml {
             filepath: fp,
-            mem: Memory::new(),
-        }
+            mem: Memory::new_unboxed(),
+        }) as Box<dyn PropStorage>
     }
 
     fn dump(&self) -> super::PropResult<()> {

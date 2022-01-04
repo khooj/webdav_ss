@@ -76,6 +76,7 @@ async fn s3_backend_test() {
                 ensure_bucket: true,
             },
         }],
+        prop_storage: None,
     };
 
     env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
