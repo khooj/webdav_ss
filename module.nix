@@ -3,10 +3,9 @@ let
 	cfg = config.services.webdav_ss;
 	pkg = (import ./Cargo.nix { inherit pkgs; });
 	webdav_ss = pkg.rootCrate.build;
-	webdav_ss_tls = pkg.rootCrate.build.override { features = [ "tls" ]; };
 	cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
 		app = {
-			inherit (cfg) host port tls key cert;
+			inherit (cfg) host port;
 		};
 
 		filesystems = cfg.filesystems;
@@ -36,24 +35,6 @@ with lib;
 			type = types.int;
 			description = "Listen port";
 			default = 5656;
-		};
-
-		tls = mkOption {
-			type = types.bool;
-			description = "Enable TLS";
-			default = false;
-		};
-
-		key = mkOption {
-			type = with types; nullOr (either string path);
-			description = "Path or string to key for TLS";
-			default = null;
-		};
-
-		cert = mkOption {
-			type = with types; nullOr (either string path);
-			description = "Path or string to cert for TLS";
-			default = null;
 		};
 
 		logLevel = mkOption {
@@ -87,7 +68,6 @@ with lib;
 		systemd.services.webdav_ss = let
 		in {
 			wantedBy = [ "multi-user.target" ];
-			# after = [ "network-online.target" ];
 			script = "${cfg.package}/bin/webdav_ss -c ${cfgFile}";
 			restartIfChanged = true;
 			environment = {

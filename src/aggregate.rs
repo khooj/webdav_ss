@@ -213,11 +213,12 @@ impl DavFileSystem for Aggregate {
     #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
+            let orig_path = path.clone();
             let (route, path) = self.find_route(&path)?;
             Ok(route
                 .remove_file(&path)
                 .await
-                .and(self.props.remove_file(&path.into()).await)?)
+                .and(self.props.remove_file(&orig_path.into()).await)?)
         }
         .boxed()
     }
@@ -225,11 +226,12 @@ impl DavFileSystem for Aggregate {
     #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
         async move {
+            let orig_path = path.clone();
             let (route, path) = self.find_route(&path)?;
             Ok(route
                 .remove_dir(&path)
                 .await
-                .and(self.props.remove_dir(&path.into()).await)?)
+                .and(self.props.remove_dir(&orig_path.into()).await)?)
         }
         .boxed()
     }
@@ -237,12 +239,14 @@ impl DavFileSystem for Aggregate {
     #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
+            let orig_from = from.clone();
+            let orig_to = to.clone();
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
             Ok(route
                 .rename(&from, &to)
                 .await
-                .and(self.props.rename(&from.into(), &to.into()).await)?)
+                .and(self.props.rename(&orig_from.into(), &orig_to.into()).await)?)
         }
         .boxed()
     }
@@ -250,12 +254,14 @@ impl DavFileSystem for Aggregate {
     #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
         async move {
+            let orig_from = from.clone();
+            let orig_to = to.clone();
             let (route, from) = self.find_route(&from)?;
             let (_, to) = self.find_route(&to)?;
             Ok(route
                 .copy(&from, &to)
                 .await
-                .and(self.props.copy(&from.into(), &to.into()).await)?)
+                .and(self.props.copy(&orig_from.into(), &orig_to.into()).await)?)
         }
         .boxed()
     }

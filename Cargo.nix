@@ -7404,7 +7404,9 @@ rec {
             packageId = "testcontainers";
           }
         ];
-
+        features = {
+        };
+        resolvedDefaultFeatures = [ "integration" ];
       };
       "webpki" = rec {
         crateName = "webpki";
