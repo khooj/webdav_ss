@@ -34,3 +34,6 @@ serde_yaml = "0.8"
 
 [dev-dependencies]
 testcontainers = "0.12"
+
+[features]
+integration = []

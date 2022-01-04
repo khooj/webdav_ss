@@ -1,11 +1,6 @@
-use bincode::{deserialize, serialize};
-use s3::serde_types::Tagging;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime},
-};
-use webdav_handler::fs::{DavMetaData, DavProp, FsResult};
+use std::time::SystemTime;
+use webdav_handler::fs::{DavMetaData, FsResult};
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug, Clone, Default)]
@@ -32,14 +27,6 @@ struct Prop {
 }
 
 impl S3MetaData {
-    fn extract_unixtime_or_zero(value: &str) -> SystemTime {
-        if let Ok(k) = value.parse() {
-            std::time::UNIX_EPOCH + Duration::from_secs(k)
-        } else {
-            SystemTime::now()
-        }
-    }
-
     pub fn extract_from_tags(len: u64, path: String, is_dir: bool) -> Self {
         let mut metadata = S3MetaData::default();
         metadata.len = len;
@@ -60,7 +47,7 @@ impl S3MetaData {
     pub fn as_metadata(&self) -> Vec<(String, String)> {
         let modified = S3MetaData::as_unixtime(self.modified);
         let created = S3MetaData::as_unixtime(self.created);
-        let mut result = vec![("modified".into(), modified), ("created".into(), created)];
+        let result = vec![("modified".into(), modified), ("created".into(), created)];
         result
     }
 }

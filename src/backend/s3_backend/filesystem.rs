@@ -5,11 +5,9 @@ use super::{
 use crate::{backend::normalized_path::NormalizedPath, configuration::Filesystem};
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
-use hyper::StatusCode;
 use s3::{
     creds::Credentials,
     region::Region,
-    serde_types::{TagSet, Tagging},
     Bucket,
 };
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
@@ -554,8 +552,8 @@ impl DavFileSystem for S3Backend {
 
     fn patch_props<'a>(
         &'a self,
-        path: &'a DavPath,
-        patch: Vec<(bool, webdav_handler::fs::DavProp)>,
+        _path: &'a DavPath,
+        _patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
         let span = span!(Level::INFO, "S3Backend::patch_props");
         async move {
@@ -567,8 +565,8 @@ impl DavFileSystem for S3Backend {
 
     fn get_prop<'a>(
         &'a self,
-        path: &'a DavPath,
-        prop: webdav_handler::fs::DavProp,
+        _path: &'a DavPath,
+        _prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
         let span = span!(Level::INFO, "S3Backend::get_prop");
         async move {
@@ -580,7 +578,7 @@ impl DavFileSystem for S3Backend {
 
     fn get_props<'a>(
         &'a self,
-        path: &'a DavPath,
+        _path: &'a DavPath,
         _do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
         let span = span!(Level::INFO, "S3Backend::get_prop");
