@@ -1,24 +1,21 @@
 app:
   host: "0.0.0.0"
-  port: 8080
-  tls: true
-  key: ssc/san-privatersa-key.key
-  cert: ssc/san_server.crt
+  port: 5555
 filesystems:
-  # - mount_path: /
-  #   type: s3
-  #   region: eu-central-1
-  #   url: http://localhost:9000
-  #   bucket: test
-  #   path_style: false
-  #   ensure_bucket: true
   - mount_path: /
     type: s3
     region: eu-central-1
-    url: https://eu-central-1.linodeobjects.com
-    bucket: khooj-webdav-storage
-    path_style: true
-    ensure_bucket: false
+    url: http://localhost:9000
+    bucket: test
+    path_style: false
+    ensure_bucket: true
+  # - mount_path: /
+  #   type: s3
+  #   region: eu-central-1
+  #   url: https://eu-central-1.linodeobjects.com
+  #   bucket: khooj-webdav-storage
+  #   path_style: true
+  #   ensure_bucket: false
   # - mount_path: /
   #   type: fs
   #   path: /home/khooj/tmppics

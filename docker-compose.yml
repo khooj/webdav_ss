@@ -11,5 +11,15 @@ services:
     volumes:
       - miniodata:/data
 
+  nginx:
+    image: nginx:1.21
+    ports:
+      - 8080:8080
+      - 8081:8081
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/nginx.conf:ro
+      - ./ssc/san_server.crt:/etc/san_server.crt:ro
+      - ./ssc/san-private-key.key:/etc/san-private-key.key:ro
+
 volumes:
   miniodata:
