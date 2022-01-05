@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use webdav_handler::fs::{DavMetaData, FsResult};
@@ -13,6 +14,7 @@ pub struct S3MetaData {
     pub created: SystemTime,
     pub executable: bool,
     pub is_dir: bool,
+    pub etag: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -27,11 +29,25 @@ struct Prop {
 }
 
 impl S3MetaData {
-    pub fn extract_from_tags(len: u64, path: String, is_dir: bool) -> Self {
+    pub fn extract_from_tags(
+        len: u64,
+        path: String,
+        is_dir: bool,
+        etag: Option<String>,
+        modified: Option<String>,
+    ) -> Self {
+        use std::convert::TryInto;
+
+        let m = DateTime::parse_from_rfc2822(&modified.unwrap_or(String::new())).map(|dt| {
+            std::time::UNIX_EPOCH
+                + std::time::Duration::from_secs(dt.timestamp().try_into().unwrap())
+        });
         let mut metadata = S3MetaData::default();
         metadata.len = len;
         metadata.path = path;
         metadata.is_dir = is_dir;
+        metadata.etag = etag;
+        metadata.modified = m.unwrap_or(SystemTime::now());
 
         metadata
     }
@@ -71,5 +87,20 @@ impl DavMetaData for S3MetaData {
 
     fn executable(&self) -> FsResult<bool> {
         Ok(self.executable)
+    }
+
+    fn etag(&self) -> Option<String> {
+        if let Ok(t) = self.modified() {
+            if let Ok(t) = t.duration_since(std::time::UNIX_EPOCH) {
+                let t = t.as_secs() * 1000000 + t.subsec_nanos() as u64 / 1000;
+                let tag = if self.is_file() && self.len() > 0 {
+                    format!("{:x}-{:x}", self.len(), t)
+                } else {
+                    format!("{:x}", t)
+                };
+                return Some(tag);
+            }
+        }
+        None
     }
 }

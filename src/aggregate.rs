@@ -148,13 +148,14 @@ impl DavDirEntry for AggregateDirEntry {
 }
 
 impl DavFileSystem for Aggregate {
-    #[instrument(level = "debug", skip(self))]
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
+        let span = span!(Level::INFO, "Aggregate::open");
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.open(&path, options).await;
             Ok(result?)
         }
+        .instrument(span)
         .boxed()
     }
 
@@ -190,28 +191,30 @@ impl DavFileSystem for Aggregate {
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
+        let span = span!(Level::INFO, "Aggregate::metadata");
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.metadata(&path).await;
             Ok(result?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "Aggregate::create_dir");
         async move {
             let (route, path) = self.find_route(&path)?;
             let result = route.create_dir(&path).await;
             Ok(result?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "Aggregate::remove_file");
         async move {
             let orig_path = path.clone();
             let (route, path) = self.find_route(&path)?;
@@ -220,11 +223,12 @@ impl DavFileSystem for Aggregate {
                 .await
                 .and(self.props.remove_file(&orig_path.into()).await)?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "Aggregate::remove_dir");
         async move {
             let orig_path = path.clone();
             let (route, path) = self.find_route(&path)?;
@@ -233,11 +237,12 @@ impl DavFileSystem for Aggregate {
                 .await
                 .and(self.props.remove_dir(&orig_path.into()).await)?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "Aggregate::rename");
         async move {
             let orig_from = from.clone();
             let orig_to = to.clone();
@@ -248,11 +253,12 @@ impl DavFileSystem for Aggregate {
                 .await
                 .and(self.props.rename(&orig_from.into(), &orig_to.into()).await)?)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> FsFuture<()> {
+        let span = span!(Level::INFO, "Aggregate::copy");
         async move {
             let orig_from = from.clone();
             let orig_to = to.clone();
@@ -263,6 +269,7 @@ impl DavFileSystem for Aggregate {
                 .await
                 .and(self.props.copy(&orig_from.into(), &orig_to.into()).await)?)
         }
+        .instrument(span)
         .boxed()
     }
 
@@ -273,12 +280,12 @@ impl DavFileSystem for Aggregate {
         Box::pin(async move { self.props.have_props(&path.into()).await })
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn patch_props<'a>(
         &'a self,
         path: &'a DavPath,
         patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
+        let span = span!(Level::INFO, "Aggregate::patch_props");
         async move {
             let mut r = vec![];
             let path: NormalizedPath = path.into();
@@ -292,16 +299,19 @@ impl DavFileSystem for Aggregate {
             }
             Ok(r)
         }
+        .instrument(span)
         .boxed()
     }
 
-    #[instrument(level = "debug", skip(self))]
     fn get_prop<'a>(
         &'a self,
         path: &'a DavPath,
         prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
-        async move { self.props.get_prop(&path.into(), prop).await }.boxed()
+        let span = span!(Level::INFO, "Aggregate::get_prop");
+        async move { self.props.get_prop(&path.into(), prop).await }
+            .instrument(span)
+            .boxed()
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -310,7 +320,10 @@ impl DavFileSystem for Aggregate {
         path: &'a DavPath,
         do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
-        async move { self.props.get_props(&path.into(), do_content).await }.boxed()
+        let span = span!(Level::INFO, "Aggregate::get_props");
+        async move { self.props.get_props(&path.into(), do_content).await }
+            .instrument(span)
+            .boxed()
     }
 }
 

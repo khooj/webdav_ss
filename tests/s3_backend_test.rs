@@ -44,7 +44,7 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
 #[tokio::test]
 #[cfg(feature = "integration")]
 async fn s3_backend_test() {
-    env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
+    // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));
@@ -75,6 +75,10 @@ async fn s3_backend_test() {
                 path_style: false,
                 ensure_bucket: true,
             },
+        },
+        FilesystemType {
+            mount_path: "/fs2".into(),
+            fs: Filesystem::Mem,
         }],
         prop_storage: Some(PropsStorage::Yaml {
             path: "/tmp/webdav_props.yml".into(),
@@ -93,7 +97,6 @@ async fn s3_backend_test() {
     let mut app = Box::pin(Application::build(config).await.run().fuse());
     let cmd = Command::new("litmus")
         .arg(format!("http://localhost:8080/fs3"))
-        // .env("TESTS", "")
         .current_dir(env::current_dir().unwrap())
         .output()
         .fuse();

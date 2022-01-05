@@ -7321,6 +7321,10 @@ rec {
             packageId = "bytes";
           }
           {
+            name = "chrono";
+            packageId = "chrono";
+          }
+          {
             name = "clap";
             packageId = "clap";
           }
