@@ -5,13 +5,7 @@ use super::{
 use crate::{backend::normalized_path::NormalizedPath, configuration::Filesystem};
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
-use hyper::StatusCode;
-use s3::{
-    creds::Credentials,
-    region::Region,
-    serde_types::{TagSet, Tagging},
-    Bucket,
-};
+use s3::{creds::Credentials, region::Region, Bucket};
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use tracing::{debug, error, instrument, span, Instrument, Level};
 use webdav_handler::memfs::MemFs;
@@ -101,7 +95,13 @@ impl S3Backend {
     async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<S3MetaData>, FsError> {
         // root dir always exist
         if path.starts_with("/") && path.ends_with("/") {
-            return Ok(Box::new(S3MetaData::extract_from_tags(0, "".into(), true)));
+            return Ok(Box::new(S3MetaData::extract_from_tags(
+                0,
+                "".into(),
+                true,
+                None,
+                None,
+            )));
         }
 
         let mut is_col = false;
@@ -127,10 +127,13 @@ impl S3Backend {
         let head = head.unwrap();
 
         let len = head.0.content_length.unwrap_or(0i64) as u64;
+        let etag = head.0.e_tag;
         Ok(Box::new(S3MetaData::extract_from_tags(
             len,
             path.into(),
             is_col,
+            etag,
+            head.0.last_modified,
         )))
     }
 
@@ -143,8 +146,8 @@ impl S3Backend {
 
         let meta = self.metadata_info(path.clone()).await;
         match meta {
-            Err(_) => {
-                return Err(FsError::GeneralFailure);
+            Err(e) => {
+                return Err(e);
             }
             Ok(k) => {
                 if k.is_file() {
@@ -208,12 +211,12 @@ impl S3Backend {
         debug!(path = ?path, dir_check = dir_check);
         let meta = self.metadata_info(path.clone()).await;
         match meta {
-            Err(_) => {
-                return Err(FsError::NotFound);
+            Err(e) => {
+                return Err(e);
             }
             Ok(k) => {
                 if k.is_dir() && dir_check {
-                    return Err(FsError::GeneralFailure);
+                    return Err(FsError::Forbidden);
                 }
             }
         };
@@ -221,7 +224,7 @@ impl S3Backend {
 
         debug!(code = code);
         if code != 204 {
-            return Err(FsError::NotFound);
+            return Err(FsError::GeneralFailure);
         }
 
         Ok(())
@@ -231,12 +234,12 @@ impl S3Backend {
     async fn remove_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
         let meta = self.metadata_info(path.clone()).await;
         match meta {
-            Err(_) => {
-                return Err(FsError::NotFound);
+            Err(e) => {
+                return Err(e);
             }
             Ok(k) => {
                 if k.is_file() {
-                    return Err(FsError::GeneralFailure);
+                    return Err(FsError::Forbidden);
                 }
             }
         };
@@ -278,7 +281,7 @@ impl S3Backend {
         match meta {
             Err(e) => {
                 debug!(msg = "parent folder does not exist", parent = ?parent, err = %e);
-                return Err(FsError::NotFound);
+                return Err(e);
             }
             Ok(k) => {
                 if k.is_file() {
@@ -414,13 +417,21 @@ impl DavFileSystem for S3Backend {
         async move {
             let path: NormalizedPath = path.into();
             let meta = self.metadata_info(path.clone()).await;
-            if let Ok(k) = meta {
-                if k.is_dir() {
-                    return Err(FsError::GeneralFailure);
+            match meta {
+                Ok(k) => {
+                    if k.is_dir() {
+                        return Err(FsError::Forbidden);
+                    }
+                    if options.create_new {
+                        return Err(FsError::Exists);
+                    }
                 }
-                if options.create_new {
-                    return Err(FsError::Exists);
+                Err(FsError::NotFound) => {
+                    if !options.create {
+                        return Err(FsError::NotFound);
+                    }
                 }
+                Err(e) => return Err(e),
             }
 
             let mut buf = vec![];
@@ -449,7 +460,10 @@ impl DavFileSystem for S3Backend {
             debug!(is_new = %options.create, path = ?path);
 
             let len = head.content_length.unwrap_or(0i64) as u64;
-            let metadata = S3MetaData::extract_from_tags(len, path.clone().into(), false);
+            let etag = head.e_tag;
+            let modified = head.last_modified;
+            let metadata =
+                S3MetaData::extract_from_tags(len, path.clone().into(), false, etag, modified);
 
             if options.create {
                 Ok(Box::new(
@@ -554,8 +568,8 @@ impl DavFileSystem for S3Backend {
 
     fn patch_props<'a>(
         &'a self,
-        path: &'a DavPath,
-        patch: Vec<(bool, webdav_handler::fs::DavProp)>,
+        _path: &'a DavPath,
+        _patch: Vec<(bool, webdav_handler::fs::DavProp)>,
     ) -> FsFuture<Vec<(hyper::StatusCode, webdav_handler::fs::DavProp)>> {
         let span = span!(Level::INFO, "S3Backend::patch_props");
         async move {
@@ -567,8 +581,8 @@ impl DavFileSystem for S3Backend {
 
     fn get_prop<'a>(
         &'a self,
-        path: &'a DavPath,
-        prop: webdav_handler::fs::DavProp,
+        _path: &'a DavPath,
+        _prop: webdav_handler::fs::DavProp,
     ) -> FsFuture<Vec<u8>> {
         let span = span!(Level::INFO, "S3Backend::get_prop");
         async move {
@@ -580,7 +594,7 @@ impl DavFileSystem for S3Backend {
 
     fn get_props<'a>(
         &'a self,
-        path: &'a DavPath,
+        _path: &'a DavPath,
         _do_content: bool,
     ) -> FsFuture<Vec<webdav_handler::fs::DavProp>> {
         let span = span!(Level::INFO, "S3Backend::get_prop");

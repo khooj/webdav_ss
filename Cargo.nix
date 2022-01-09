@@ -7321,6 +7321,10 @@ rec {
             packageId = "bytes";
           }
           {
+            name = "chrono";
+            packageId = "chrono";
+          }
+          {
             name = "clap";
             packageId = "clap";
           }
@@ -7404,7 +7408,9 @@ rec {
             packageId = "testcontainers";
           }
         ];
-
+        features = {
+        };
+        resolvedDefaultFeatures = [ "integration" ];
       };
       "webpki" = rec {
         crateName = "webpki";

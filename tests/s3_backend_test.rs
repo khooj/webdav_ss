@@ -42,6 +42,7 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
 }
 
 #[tokio::test]
+#[cfg(feature = "integration")]
 async fn s3_backend_test() {
     // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
@@ -66,7 +67,7 @@ async fn s3_backend_test() {
             port: 8080,
         },
         filesystems: vec![FilesystemType {
-            mount_path: "/".into(),
+            mount_path: "/fs3".into(),
             fs: Filesystem::S3 {
                 region: "us-east-1".into(),
                 bucket: "test".into(),
@@ -74,6 +75,10 @@ async fn s3_backend_test() {
                 path_style: false,
                 ensure_bucket: true,
             },
+        },
+        FilesystemType {
+            mount_path: "/fs2".into(),
+            fs: Filesystem::Mem,
         }],
         prop_storage: Some(PropsStorage::Yaml {
             path: "/tmp/webdav_props.yml".into(),
@@ -91,8 +96,7 @@ async fn s3_backend_test() {
     env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
     let mut app = Box::pin(Application::build(config).await.run().fuse());
     let cmd = Command::new("litmus")
-        .arg(format!("http://localhost:8080"))
-        .env("TESTS", "basic copymove http props locks")
+        .arg(format!("http://localhost:8080/fs3"))
         .current_dir(env::current_dir().unwrap())
         .output()
         .fuse();

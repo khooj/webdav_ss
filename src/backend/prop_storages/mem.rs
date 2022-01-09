@@ -242,3 +242,33 @@ impl PropStorage for Memory {
         .boxed()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rename() -> anyhow::Result<()> {
+        let mem = Memory::new();
+        let prop = DavProp {
+            name: "name1".into(),
+            namespace: Some("namespace1".into()),
+            prefix: None,
+            xml: Some([1, 2, 3].into()),
+        };
+
+        mem.patch_prop(&"/fs3/some/prop".into(), (true, prop.clone()))
+            .await?;
+
+        mem.rename(&"/fs3/some/prop".into(), &"/fs3/some/prop2".into())
+            .await?;
+
+        let p = mem
+            .get_prop(&"/fs3/some/prop2".into(), prop.clone())
+            .await?;
+
+        assert_eq!(p, prop.xml.unwrap());
+
+        Ok(())
+    }
+}
