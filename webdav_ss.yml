@@ -16,8 +16,8 @@ filesystems:
   #   bucket: khooj-webdav-storage
   #   path_style: true
   #   ensure_bucket: false
-  # - mount_path: /
-  #   type: fs
-  #   path: /home/khooj/tmppics
-  # - mount_path: /
-  #   type: mem
+  - mount_path: /fs
+    type: fs
+    path: /tmp/webdavfs
+  - mount_path: /mem
+    type: mem

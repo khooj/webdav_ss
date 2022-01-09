@@ -30,6 +30,8 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 					url = "http://localhost:9000";
 					bucket = "test";
 					region = "us-east-1";
+					path_style = false;
+					ensure_bucket = true;
 				}
 			];
 
@@ -59,8 +61,7 @@ machine.wait_for_open_port(9000)
 machine.wait_for_unit("webdav_ss.service")
 machine.wait_for_open_port(5000)
 machine.succeed("litmus http://localhost:5000/fs1")
-# FS backend fails on few tests in "locks" and "props" suites
-machine.succeed("TESTS=\"basic copymove http\" litmus http://localhost:5000/fs2")
-machine.succeed("TESTS=\"basic copymove http\" litmus http://localhost:5000/fs3")
+machine.succeed("litmus http://localhost:5000/fs2")
+machine.succeed("litmus http://localhost:5000/fs3")
 '';
 }) { inherit system; }
