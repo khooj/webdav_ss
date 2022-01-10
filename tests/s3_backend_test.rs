@@ -41,21 +41,7 @@ impl<'d, D: Docker, I: Image> Drop for ContainerDrop<'d, D, I> {
     }
 }
 
-#[tokio::test]
-#[cfg(feature = "integration")]
-async fn s3_backend_test() {
-    // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
-    webdav_ss::configuration::setup_tracing();
-
-    let args = RunArgs::default().with_mapped_port((9000, 9000));
-    let image = GenericImage::new("minio/minio")
-        .with_wait_for(WaitFor::LogMessage {
-            message: "Detected default credentials".into(),
-            stream: Stream::StdOut,
-        })
-        .with_args(vec!["server".into(), "/data".into()])
-        .with_env_var("MINIO_DOMAIN", "localhost");
-
+async fn run_in_container(image: GenericImage, args: RunArgs, fs: FilesystemType) {
     let docker = Cli::default();
     let cont = docker.run_with_args(image, args);
 
@@ -66,20 +52,13 @@ async fn s3_backend_test() {
             host: "127.0.0.1".into(),
             port: 8080,
         },
-        filesystems: vec![FilesystemType {
-            mount_path: "/fs3".into(),
-            fs: Filesystem::S3 {
-                region: "us-east-1".into(),
-                bucket: "test".into(),
-                url: format!("http://localhost:{}", 9000),
-                path_style: false,
-                ensure_bucket: true,
+        filesystems: vec![
+            fs,
+            FilesystemType {
+                mount_path: "/fs2".into(),
+                fs: Filesystem::Mem,
             },
-        },
-        FilesystemType {
-            mount_path: "/fs2".into(),
-            fs: Filesystem::Mem,
-        }],
+        ],
         prop_storage: Some(PropsStorage::Yaml {
             path: "/tmp/webdav_props.yml".into(),
         }),
@@ -92,8 +71,6 @@ async fn s3_backend_test() {
         let _ = std::fs::remove_file("/tmp/webdav_props.yml");
     }
 
-    env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
-    env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
     let mut app = Box::pin(Application::build(config).await.run().fuse());
     let cmd = Command::new("litmus")
         .arg(format!("http://localhost:8080/fs3"))
@@ -114,4 +91,98 @@ async fn s3_backend_test() {
         },
         _ = app => {} ,
     };
+}
+
+#[tokio::test]
+// #[cfg(feature = "integration")]
+async fn s3_backend_minio() {
+    // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
+    webdav_ss::configuration::setup_tracing();
+
+    let args = RunArgs::default().with_mapped_port((9000, 9000));
+    let image = GenericImage::new("minio/minio")
+        .with_wait_for(WaitFor::LogMessage {
+            message: "Detected default credentials".into(),
+            stream: Stream::StdOut,
+        })
+        .with_args(vec!["server".into(), "/data".into()])
+        .with_env_var("MINIO_DOMAIN", "localhost");
+
+    env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
+    env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
+
+    let fs = FilesystemType {
+        mount_path: "/fs3".into(),
+        fs: Filesystem::S3 {
+            region: "us-east-1".into(),
+            bucket: "test".into(),
+            url: format!("http://localhost:{}", 9000),
+            path_style: false,
+            ensure_bucket: true,
+        },
+    };
+
+    run_in_container(image, args, fs).await;
+}
+
+#[tokio::test]
+// #[cfg(feature = "integration")]
+async fn s3_backend_minio_pathstyle() {
+    // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
+    webdav_ss::configuration::setup_tracing();
+
+    let args = RunArgs::default().with_mapped_port((9000, 9000));
+    let image = GenericImage::new("minio/minio")
+        .with_wait_for(WaitFor::LogMessage {
+            message: "Detected default credentials".into(),
+            stream: Stream::StdOut,
+        })
+        .with_args(vec!["server".into(), "/data".into()]);
+
+    env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
+    env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
+
+    let fs = FilesystemType {
+        mount_path: "/fs3".into(),
+        fs: Filesystem::S3 {
+            region: "us-east-1".into(),
+            bucket: "test".into(),
+            url: format!("http://localhost:{}", 9000),
+            path_style: true,
+            ensure_bucket: true,
+        },
+    };
+
+    run_in_container(image, args, fs).await;
+}
+
+#[tokio::test]
+// #[cfg(feature = "integration")]
+async fn s3_backend_zenko() {
+    env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
+    webdav_ss::configuration::setup_tracing();
+
+    let args = RunArgs::default().with_mapped_port((8000, 8000));
+    let image = GenericImage::new("zenko/cloudserver")
+        .with_wait_for(WaitFor::LogMessage {
+            message: "server started".into(),
+            stream: Stream::StdOut,
+        })
+        .with_args(vec!["yarn".into(), "run".into(), "mem_backend".into()]);
+
+    env::set_var("AWS_ACCESS_KEY_ID", "accessKey1");
+    env::set_var("AWS_SECRET_ACCESS_KEY", "verySecretKey1");
+
+    let fs = FilesystemType {
+        mount_path: "/fs3".into(),
+        fs: Filesystem::S3 {
+            region: "us-east-1".into(),
+            bucket: "test".into(),
+            url: format!("http://localhost:{}", 8000),
+            path_style: true,
+            ensure_bucket: true,
+        },
+    };
+
+    run_in_container(image, args, fs).await;
 }
