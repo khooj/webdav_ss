@@ -69,8 +69,8 @@ impl S3Backend {
                 Credentials::new(Some(&v.access_key), Some(&v.secret_key), None, None, None)?
             }
             S3Authentication::Values {
-                access_key,
-                secret_key,
+                access_key_value: access_key,
+                secret_key_value: secret_key,
             } => Credentials::new(Some(&access_key), Some(&secret_key), None, None, None)?,
         };
         let bucket_name = bucket.to_owned();

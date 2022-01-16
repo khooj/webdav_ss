@@ -91,8 +91,8 @@ pub enum S3Authentication {
         path: String,
     },
     Values {
-        access_key: String,
-        secret_key: String,
+        access_key_value: String,
+        secret_key_value: String,
     },
 }
 

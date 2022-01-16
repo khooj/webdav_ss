@@ -35,8 +35,8 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 					ensure_bucket = true;
 					auth = {
 						type = "values";
-						access_key = "minioadmin";
-						secret_key = "minioadmin";
+						access_key_value = "minioadmin";
+						secret_key_value = "minioadmin";
 					};
 				}
 			];

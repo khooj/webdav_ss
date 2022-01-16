@@ -121,8 +121,8 @@ async fn s3_backend_minio() {
             path_style: false,
             ensure_bucket: true,
             auth: S3Authentication::Values {
-                access_key: "minioadmin".into(),
-                secret_key: "minioadmin".into(),
+                access_key_value: "minioadmin".into(),
+                secret_key_value: "minioadmin".into(),
             },
         },
     };
@@ -153,8 +153,8 @@ async fn s3_backend_minio_pathstyle() {
             path_style: true,
             ensure_bucket: true,
             auth: S3Authentication::Values {
-                access_key: "minioadmin".into(),
-                secret_key: "minioadmin".into(),
+                access_key_value: "minioadmin".into(),
+                secret_key_value: "minioadmin".into(),
             },
         },
     };
@@ -185,8 +185,8 @@ async fn s3_backend_zenko() {
             path_style: true,
             ensure_bucket: true,
             auth: S3Authentication::Values {
-                access_key: "accessKey1".into(),
-                secret_key: "verySecretKey1".into(),
+                access_key_value: "accessKey1".into(),
+                secret_key_value: "verySecretKey1".into(),
             },
         },
     };
