@@ -95,7 +95,7 @@ async fn run_in_container(image: GenericImage, args: RunArgs, fs: FilesystemType
 }
 
 #[tokio::test]
-// #[cfg(feature = "integration")]
+#[cfg(feature = "integration")]
 async fn s3_backend_minio() {
     // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
@@ -131,7 +131,7 @@ async fn s3_backend_minio() {
 }
 
 #[tokio::test]
-// #[cfg(feature = "integration")]
+#[cfg(feature = "integration")]
 async fn s3_backend_minio_pathstyle() {
     // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
@@ -163,7 +163,7 @@ async fn s3_backend_minio_pathstyle() {
 }
 
 #[tokio::test]
-// #[cfg(feature = "integration")]
+#[cfg(feature = "integration")]
 async fn s3_backend_zenko() {
     env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
     webdav_ss::configuration::setup_tracing();
