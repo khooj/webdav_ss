@@ -5972,6 +5972,25 @@ rec {
         };
         resolvedDefaultFeatures = [ "codec" "default" "io" ];
       };
+      "toml" = rec {
+        crateName = "toml";
+        version = "0.5.8";
+        edition = "2018";
+        sha256 = "1apcmjrrjw429pjw7mqlmdwwd67g8305vwqy4kw3swr612bl44d3";
+        authors = [
+          "Alex Crichton <alex@alexcrichton.com>"
+        ];
+        dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+          }
+        ];
+        features = {
+          "preserve_order" = [ "indexmap" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "tower-service" = rec {
         crateName = "tower-service";
         version = "0.3.1";
@@ -7384,6 +7403,10 @@ rec {
             name = "tokio-util";
             packageId = "tokio-util";
             features = [ "io" ];
+          }
+          {
+            name = "toml";
+            packageId = "toml";
           }
           {
             name = "tracing";
