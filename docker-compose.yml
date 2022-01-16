@@ -11,16 +11,12 @@ services:
     volumes:
       - miniodata:/data
 
-  zenko:
-    image: zenko/cloudserver
-    ports:
-      - 8000:8000
-
   nginx:
     image: nginx:1.21
     ports:
       - 8080:8080
       - 8081:8081
+      - 8082:8082
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/nginx.conf:ro
       - ./ssc/san_server.crt:/etc/san_server.crt:ro

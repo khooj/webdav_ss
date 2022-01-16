@@ -186,11 +186,13 @@ impl S3Backend {
             }
         };
 
-        let objects = self
-            .client
-            .list(path.clone().into(), Some("/".into()))
-            .await
-            .unwrap();
+        debug!(path_to_prefix = %path);
+        let prefix = if path.ends_with("/") && path.len() == 1 {
+            "".into()
+        } else {
+            path.clone().into()
+        };
+        let objects = self.client.list(prefix, Some("/".into())).await.unwrap();
 
         debug!(msg = "received entries", entries = ?objects);
         let fs = self.clone();

@@ -2,7 +2,7 @@ app:
   host: "0.0.0.0"
   port: 5555
 filesystems:
-  - mount_path: /
+  - mount_path: /minio
     type: s3
     region: eu-central-1
     url: http://localhost:9000
@@ -13,24 +13,16 @@ filesystems:
       type: values
       access_key: minioadmin
       secret_key: minioadmin
-  - mount_path: /zenko
+  - mount_path: /linode
     type: s3
-    region: us-east-1
-    url: http://localhost:8000
-    bucket: test
-    path_style: true
-    ensure_bucket: true
+    region: eu-central-1
+    url: https://eu-central-1.linodeobjects.com
+    bucket: khooj-webdav-test
+    path_style: false
+    ensure_bucket: false
     auth:
-      type: values
-      access_key: accessKey1
-      secret_key: verySecretKey1
-  # - mount_path: /
-  #   type: s3
-  #   region: eu-central-1
-  #   url: https://eu-central-1.linodeobjects.com
-  #   bucket: khooj-webdav-storage
-  #   path_style: true
-  #   ensure_bucket: false
+      type: file
+      path: linode-access
   - mount_path: /fs
     type: fs
     path: /tmp/webdavfs
