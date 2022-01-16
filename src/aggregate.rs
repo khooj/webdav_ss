@@ -113,7 +113,9 @@ impl Aggregate {
 }
 
 #[derive(Debug, Clone)]
-struct AggregateMetaData {}
+struct AggregateMetaData {
+    path: NormalizedPath,
+}
 
 impl DavMetaData for AggregateMetaData {
     fn len(&self) -> u64 {
@@ -143,7 +145,12 @@ impl DavDirEntry for AggregateDirEntry {
     }
 
     fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
-        async move { Ok(Box::new(AggregateMetaData {}) as Box<dyn DavMetaData>) }.boxed()
+        async move {
+            Ok(Box::new(AggregateMetaData {
+                path: self.path.clone(),
+            }) as Box<dyn DavMetaData>)
+        }
+        .boxed()
     }
 }
 
@@ -169,17 +176,42 @@ impl DavFileSystem for Aggregate {
         use futures_util::StreamExt;
         let span = span!(Level::INFO, "Aggregate::read_dir");
 
+        // TODO: should test two cases here:
+        // - when all routes mounted at one level like this:
+        //      /linode
+        //      /minio
+        //      /fs
+        //      /mem
+        // - when some routes mounted inside root that is fs itself:
+        //      / (some s3 fs)
+        //      /minio
+        //      /fs
+        //      /mem
         async move {
             let dirs = self.find_routes_at_level(path)?;
 
+            let mut agg_dirs = vec![];
+            match self.find_route(&path) {
+                Ok((route, path)) => {
+                    match route.read_dir(&path, meta).await {
+                        Ok(mut result) => {
+                            while let Some(i) = result.next().await {
+                                agg_dirs.push(i);
+                            }
+                        },
+                        _ => {},
+                    }
+                },
+                _ => {}
+            };
+
             debug!(msg = "generated dirs to output", dirs = ?dirs);
-            let (route, path) = self.find_route(&path)?;
-            let mut result = route.read_dir(&path, meta).await?;
             let ss = stream! {
-                while let Some(i) = result.next().await {
-                    debug!(msg = "output from route()");
-                    yield i;
+                for d in agg_dirs {
+                    debug!(msg = "yield from route");
+                    yield d;
                 }
+
                 for d in dirs {
                     debug!(msg = "yield aggregate dirs", name = %d);
                     yield Box::new(AggregateDirEntry{ path: format!("{}/", d).into() }) as Box<dyn DavDirEntry>;
@@ -194,6 +226,10 @@ impl DavFileSystem for Aggregate {
     fn metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<Box<dyn DavMetaData>> {
         let span = span!(Level::INFO, "Aggregate::metadata");
         async move {
+            let p: NormalizedPath = path.clone().into();
+            if p.is_root() {
+                return Ok(Box::new(AggregateMetaData { path: p }) as Box<dyn DavMetaData>);
+            }
             let (route, path) = self.find_route(&path)?;
             let result = route.metadata(&path).await;
             Ok(result?)

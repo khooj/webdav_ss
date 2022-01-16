@@ -5,15 +5,16 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 	machine = { ... }: {
 		imports = [ ./module.nix ];
 		environment.systemPackages = [ litmus ];
+		virtualisation = {
+			diskSize = 2048;
+			memorySize = 1024;
+		};
 
 		services.webdav_ss = {
 			enable = true;
 			host = "0.0.0.0";
 			port = 5000;
 			logLevel = "info";
-			environment = {
-				"AWS_ACCESS_KEY_ID" = "minioadmin";
-			};
 			filesystems = [
 				{
 					mount_path = "/fs1";
@@ -32,11 +33,15 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 					region = "us-east-1";
 					path_style = false;
 					ensure_bucket = true;
+					auth = {
+						type = "values";
+						access_key_value = "minioadmin";
+						secret_key_value = "minioadmin";
+					};
 				}
 			];
 
 			environmentFile = pkgs.writeText "envs" ''
-			AWS_SECRET_ACCESS_KEY=minioadmin
 			'';
 		};
 
