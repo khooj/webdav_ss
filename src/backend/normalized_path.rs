@@ -64,6 +64,10 @@ impl NormalizedPath {
         self.0.ends_with("/")
     }
 
+    pub fn is_root(&self) -> bool {
+        self.is_collection() && self.0.len() == 1
+    }
+
     pub fn dirs_parent(&self) -> NormalizedPath {
         if self.is_collection() {
             self.parent()
