@@ -2,11 +2,15 @@ use super::{
     entries::S3DirEntry, metadata::S3MetaData, partial_open_file::PartialOpenFile,
     simple_open_file::S3SimpleOpenFile,
 };
-use crate::{backend::normalized_path::NormalizedPath, configuration::Filesystem};
+use crate::{
+    backend::normalized_path::NormalizedPath,
+    configuration::{Filesystem, S3AuthFile, S3Authentication},
+};
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
 use s3::{creds::Credentials, region::Region, Bucket};
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
+use std::io::{BufReader, Read};
 use tracing::{debug, error, instrument, span, Instrument, Level};
 use webdav_handler::memfs::MemFs;
 use webdav_handler::{
@@ -26,14 +30,15 @@ pub struct S3Backend {
 impl S3Backend {
     #[instrument(level = "info", err)]
     pub async fn new(config: Filesystem) -> Result<Box<dyn DavFileSystem>> {
-        let (bucket, region, url, path_style, ensure_bucket) = match config {
+        let (bucket, region, url, path_style, ensure_bucket, auth) = match config {
             Filesystem::S3 {
                 bucket,
                 region,
                 url,
                 path_style,
                 ensure_bucket,
-            } => (bucket, region, url, path_style, ensure_bucket),
+                auth,
+            } => (bucket, region, url, path_style, ensure_bucket, auth),
             _ => return Err(anyhow!("unsupported config")),
         };
         let url = url.to_owned();
@@ -42,7 +47,32 @@ impl S3Backend {
             region: region.parse()?,
         };
 
-        let creds = Credentials::from_env()?;
+        let creds = match auth {
+            S3Authentication::Environment {
+                access_key,
+                secret_key,
+            } => Credentials::from_env_specific(Some(&access_key), Some(&secret_key), None, None)?,
+            S3Authentication::File { path } => {
+                let mut opts = std::fs::OpenOptions::new();
+                let f = opts
+                    .read(true)
+                    .open(&path)
+                    .expect("can't open credentials file");
+
+                let mut s = String::new();
+                let mut b = BufReader::new(f);
+                b.read_to_string(&mut s)
+                    .expect("can't read credentials file");
+
+                let v: S3AuthFile = toml::from_str(&s).expect("can't deserialize credentials file");
+
+                Credentials::new(Some(&v.access_key), Some(&v.secret_key), None, None, None)?
+            }
+            S3Authentication::Values {
+                access_key,
+                secret_key,
+            } => Credentials::new(Some(&access_key), Some(&secret_key), None, None, None)?,
+        };
         let bucket_name = bucket.to_owned();
         let bucket = if path_style {
             Bucket::new_with_path_style(&bucket_name, region.clone(), creds.clone())?

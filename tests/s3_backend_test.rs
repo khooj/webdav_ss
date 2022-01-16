@@ -10,6 +10,7 @@ use webdav_ss::{
     application::Application,
     configuration::{
         Application as ConfigApplication, Configuration, Filesystem, FilesystemType, PropsStorage,
+        S3Authentication,
     },
 };
 
@@ -119,6 +120,10 @@ async fn s3_backend_minio() {
             url: format!("http://localhost:{}", 9000),
             path_style: false,
             ensure_bucket: true,
+            auth: S3Authentication::Values {
+                access_key: "minioadmin".into(),
+                secret_key: "minioadmin".into(),
+            },
         },
     };
 
@@ -139,9 +144,6 @@ async fn s3_backend_minio_pathstyle() {
         })
         .with_args(vec!["server".into(), "/data".into()]);
 
-    env::set_var("AWS_ACCESS_KEY_ID", "minioadmin");
-    env::set_var("AWS_SECRET_ACCESS_KEY", "minioadmin");
-
     let fs = FilesystemType {
         mount_path: "/fs3".into(),
         fs: Filesystem::S3 {
@@ -150,6 +152,10 @@ async fn s3_backend_minio_pathstyle() {
             url: format!("http://localhost:{}", 9000),
             path_style: true,
             ensure_bucket: true,
+            auth: S3Authentication::Values {
+                access_key: "minioadmin".into(),
+                secret_key: "minioadmin".into(),
+            },
         },
     };
 
@@ -170,9 +176,6 @@ async fn s3_backend_zenko() {
         })
         .with_args(vec!["yarn".into(), "run".into(), "mem_backend".into()]);
 
-    env::set_var("AWS_ACCESS_KEY_ID", "accessKey1");
-    env::set_var("AWS_SECRET_ACCESS_KEY", "verySecretKey1");
-
     let fs = FilesystemType {
         mount_path: "/fs3".into(),
         fs: Filesystem::S3 {
@@ -181,6 +184,10 @@ async fn s3_backend_zenko() {
             url: format!("http://localhost:{}", 8000),
             path_style: true,
             ensure_bucket: true,
+            auth: S3Authentication::Values {
+                access_key: "accessKey1".into(),
+                secret_key: "verySecretKey1".into(),
+            },
         },
     };
 

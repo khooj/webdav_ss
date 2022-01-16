@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 
@@ -37,6 +39,60 @@ pub enum Filesystem {
         url: String,
         path_style: bool,
         ensure_bucket: bool,
+        #[serde(default)]
+        auth: S3Authentication,
+    },
+}
+
+#[derive(Debug, Deserialize, Clone, derivative::Derivative)]
+#[derivative(Default)]
+pub struct ConfAccessKey(#[derivative(Default(value = "\"AWS_ACCESS_KEY_ID\".into()"))] String);
+
+impl Deref for ConfAccessKey {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, derivative::Derivative)]
+#[derivative(Default)]
+pub struct ConfSecretKey(#[derivative(Default(value = "\"AWS_SECRET_ACCESS_KEY\".into()"))] String);
+
+impl Deref for ConfSecretKey {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Deserialize)]
+pub struct S3AuthFile {
+    #[serde(rename = "ACCESS_KEY")]
+    pub access_key: String,
+    #[serde(rename = "SECRET_KEY")]
+    pub secret_key: String,
+}
+
+#[derive(Debug, Deserialize, Clone, derivative::Derivative)]
+#[serde(tag = "type", rename_all = "lowercase")]
+#[derivative(Default)]
+pub enum S3Authentication {
+    #[derivative(Default)]
+    Environment {
+        #[serde(default)]
+        access_key: ConfAccessKey,
+        #[serde(default)]
+        secret_key: ConfSecretKey,
+    },
+    File {
+        path: String,
+    },
+    Values {
+        access_key: String,
+        secret_key: String,
     },
 }
 

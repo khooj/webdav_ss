@@ -11,6 +11,11 @@ services:
     volumes:
       - miniodata:/data
 
+  zenko:
+    image: zenko/cloudserver
+    ports:
+      - 8000:8000
+
   nginx:
     image: nginx:1.21
     ports:

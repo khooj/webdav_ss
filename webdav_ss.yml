@@ -9,6 +9,21 @@ filesystems:
     bucket: test
     path_style: false
     ensure_bucket: true
+    auth:
+      type: values
+      access_key: minioadmin
+      secret_key: minioadmin
+  - mount_path: /zenko
+    type: s3
+    region: us-east-1
+    url: http://localhost:8000
+    bucket: test
+    path_style: true
+    ensure_bucket: true
+    auth:
+      type: values
+      access_key: accessKey1
+      secret_key: verySecretKey1
   # - mount_path: /
   #   type: s3
   #   region: eu-central-1
