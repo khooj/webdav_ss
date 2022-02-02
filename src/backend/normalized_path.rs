@@ -119,7 +119,7 @@ impl From<&DavPath> for NormalizedPath {
         let t = t
             .as_pathbuf()
             .strip_prefix("/")
-            .unwrap()
+            .unwrap_or(t.as_pathbuf().as_path())
             .to_str()
             .unwrap()
             .to_owned();
