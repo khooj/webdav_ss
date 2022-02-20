@@ -1,6 +1,9 @@
 app:
   host: "0.0.0.0"
   port: 5555
+  prop_storage:
+    type: yaml
+    path: test.yml
 filesystems:
   - mount_path: /minio
     type: s3
@@ -11,8 +14,8 @@ filesystems:
     ensure_bucket: true
     auth:
       type: values
-      access_key: minioadmin
-      secret_key: minioadmin
+      access_key_value: minioadmin
+      secret_key_value: minioadmin
   - mount_path: /linode
     type: s3
     region: eu-central-1
