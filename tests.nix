@@ -17,7 +17,7 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 			logLevel = "info";
 			prop_storage = {
 				type = "yaml";
-				path = "/tmp/yaml_storage.yml";
+				path = "/tmp/twodir/yaml_storage.yml";
 			};
 
 			filesystems = [
