@@ -5,7 +5,7 @@ let
 	webdav_ss = pkg.rootCrate.build;
 	cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
 		app = {
-			inherit (cfg) host port;
+			inherit (cfg) host port prop_storage;
 		};
 
 		filesystems = cfg.filesystems;
@@ -35,6 +35,12 @@ with lib;
 			type = types.int;
 			description = "Listen port";
 			default = 5656;
+		};
+
+		prop_storage = mkOption {
+			type = with types; nullOr attrs;
+			description = "props storage backend";
+			default = null;
 		};
 
 		logLevel = mkOption {
