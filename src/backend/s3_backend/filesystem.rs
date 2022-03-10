@@ -292,6 +292,14 @@ impl S3Backend {
             }
         }
 
+        if path.is_collection() {
+            let p = path.strip_suffix("/").unwrap();
+            let meta = self.metadata_info(p.clone().into()).await;
+            if let Ok(_) = meta {
+                return Err(FsError::Forbidden);
+            }
+        }
+
         let prefix_dir = path.join_file(".dir");
         if path.ends_with("/") && path.starts_with("/") {
             let (resp, code) = self
