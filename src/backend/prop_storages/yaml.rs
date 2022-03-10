@@ -9,7 +9,7 @@ use super::{mem::Memory, PropStorage};
 struct Prop {
     namespace: Option<String>,
     prefix: Option<String>,
-    value: Option<Vec<u8>>,
+    value: Option<String>,
     name: String,
 }
 
@@ -41,6 +41,11 @@ impl Yaml {
             serde_yaml::from_reader(f).map_err(|e| Error::new(ErrorKind::Other, e))?;
 
         for (k, v) in &data {
+            let xml = v.value.clone()
+                .map(|v| 
+                    base64::decode(&v)
+                    .map(|k| Some(k)).unwrap_or(None)
+                ).unwrap_or(None);
             let _ = self
                 .mem
                 .add_prop(
@@ -51,7 +56,7 @@ impl Yaml {
                             name: v.name.clone(),
                             namespace: v.namespace.clone(),
                             prefix: v.prefix.clone(),
-                            xml: v.value.clone(),
+                            xml,
                         },
                     ),
                 )
@@ -72,7 +77,7 @@ impl Yaml {
                         namespace: v.namespace,
                         name: v.name,
                         prefix: v.prefix,
-                        value: v.xml,
+                        value: v.xml.map(|m| base64::encode(m)),
                     },
                 )
             })

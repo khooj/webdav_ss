@@ -15,6 +15,11 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 			host = "0.0.0.0";
 			port = 5000;
 			logLevel = "info";
+			prop_storage = {
+				type = "yaml";
+				path = "/tmp/twodir/yaml_storage.yml";
+			};
+
 			filesystems = [
 				{
 					mount_path = "/fs1";

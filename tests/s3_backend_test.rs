@@ -161,35 +161,3 @@ async fn s3_backend_minio_pathstyle() {
 
     run_in_container(image, args, fs).await;
 }
-
-#[tokio::test]
-#[cfg(feature = "integration")]
-async fn s3_backend_zenko() {
-    env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
-    webdav_ss::configuration::setup_tracing();
-
-    let args = RunArgs::default().with_mapped_port((8000, 8000));
-    let image = GenericImage::new("zenko/cloudserver")
-        .with_wait_for(WaitFor::LogMessage {
-            message: "server started".into(),
-            stream: Stream::StdOut,
-        })
-        .with_args(vec!["yarn".into(), "run".into(), "mem_backend".into()]);
-
-    let fs = FilesystemType {
-        mount_path: "/fs3".into(),
-        fs: Filesystem::S3 {
-            region: "us-east-1".into(),
-            bucket: "test".into(),
-            url: format!("http://localhost:{}", 8000),
-            path_style: true,
-            ensure_bucket: true,
-            auth: S3Authentication::Values {
-                access_key_value: "accessKey1".into(),
-                secret_key_value: "verySecretKey1".into(),
-            },
-        },
-    };
-
-    run_in_container(image, args, fs).await;
-}
