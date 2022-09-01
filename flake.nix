@@ -9,19 +9,12 @@
 
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
     let
-      rust-version = "1.54.0";
+      rust-version = "1.61.0";
       systems = [ "x86_64-linux" "aarch64-linux" ];
     in flake-utils.lib.eachSystem systems (system:
       let
         overlays = [
           rust-overlay.overlay
-          (self: super: rec {
-            rustc = self.rust-bin.stable.${rust-version}.default.override {
-              extensions =
-                [ "rust-src" "rust-std" "rustfmt" "clippy" "rust-analysis" ];
-            };
-            cargo = rustc;
-          })
         ];
         pkgs = import nixpkgs { inherit system overlays; };
         lib = pkgs.lib;
@@ -36,20 +29,19 @@
         };
 
         buildInputs = with pkgs; [
+	rust-bin.stable.${rust-version}.default
           litmus
-          sccache
           pkgconfig
           gnumake
           jq
           git
           bintools
-          llvmPackages.bintools
-          llvmPackages.libcxxClang
           python3
           openssl
           cmake
           crate2nix
           nixos-shell
+vscodium
         ];
         nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
         moduleTests = (import ./tests.nix { inherit system pkgs litmus; });
