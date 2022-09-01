@@ -2,7 +2,7 @@
 import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }: 
 {
 	name = "check";
-	machine = { ... }: {
+	nodes.machine1 = { ... }: {
 		imports = [ ./module.nix ];
 		environment.systemPackages = [ litmus ];
 		virtualisation = {
@@ -66,12 +66,12 @@ import "${toString pkgs.path}/nixos/tests/make-test-python.nix" ({ lib, ... }:
 
 	testScript = ''
 start_all()
-machine.wait_for_unit("minio")
-machine.wait_for_open_port(9000)
-machine.wait_for_unit("webdav_ss.service")
-machine.wait_for_open_port(5000)
-machine.succeed("litmus http://localhost:5000/fs1")
-machine.succeed("litmus http://localhost:5000/fs2")
-machine.succeed("litmus http://localhost:5000/fs3")
+machine1.wait_for_unit("minio")
+machine1.wait_for_open_port(9000)
+machine1.wait_for_unit("webdav_ss.service")
+machine1.wait_for_open_port(5000)
+machine1.succeed("litmus http://localhost:5000/fs1")
+machine1.succeed("litmus http://localhost:5000/fs2")
+machine1.succeed("litmus http://localhost:5000/fs3")
 '';
 }) { inherit system; }
