@@ -97,6 +97,7 @@ rec {
         ];
         features = {
           "compile-time-rng" = [ "const-random" ];
+          "const-random" = [ "dep:const-random" ];
           "default" = [ "compile-time-rng" "std" ];
         };
       };
@@ -130,7 +131,9 @@ rec {
         ];
         features = {
           "compile-time-rng" = [ "const-random" ];
+          "const-random" = [ "dep:const-random" ];
           "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
         };
       };
       "aho-corasick" = rec {
@@ -195,6 +198,7 @@ rec {
         ];
         features = {
           "derive_serde_style" = [ "serde" ];
+          "serde" = [ "dep:serde" ];
         };
       };
       "anyhow" = rec {
@@ -206,6 +210,7 @@ rec {
           "David Tolnay <dtolnay@gmail.com>"
         ];
         features = {
+          "backtrace" = [ "dep:backtrace" ];
           "default" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
@@ -220,6 +225,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "array-sizes-33-128" ];
       };
@@ -327,10 +333,14 @@ rec {
           }
         ];
         features = {
+          "async-io" = [ "dep:async-io" ];
           "default" = [ "async-io" ];
           "tokio" = [ "tokio-crate" ];
+          "tokio-crate" = [ "dep:tokio-crate" ];
           "tokio02" = [ "tokio02-crate" ];
+          "tokio02-crate" = [ "dep:tokio02-crate" ];
           "tokio03" = [ "tokio03-crate" ];
+          "tokio03-crate" = [ "dep:tokio03-crate" ];
         };
         resolvedDefaultFeatures = [ "async-io" "default" ];
       };
@@ -546,14 +556,36 @@ rec {
         ];
         features = {
           "alloc" = [ "futures-core/alloc" "pin-project-lite" ];
+          "async-attributes" = [ "dep:async-attributes" ];
+          "async-channel" = [ "dep:async-channel" ];
+          "async-global-executor" = [ "dep:async-global-executor" ];
+          "async-io" = [ "dep:async-io" ];
+          "async-lock" = [ "dep:async-lock" ];
+          "async-process" = [ "dep:async-process" ];
           "attributes" = [ "async-attributes" ];
+          "crossbeam-utils" = [ "dep:crossbeam-utils" ];
           "default" = [ "std" "async-global-executor" "async-io" "futures-lite" "kv-log-macro" "log" "num_cpus" "pin-project-lite" "gloo-timers" ];
           "docs" = [ "attributes" "unstable" "default" ];
+          "futures-channel" = [ "dep:futures-channel" ];
+          "futures-core" = [ "dep:futures-core" ];
+          "futures-io" = [ "dep:futures-io" ];
+          "futures-lite" = [ "dep:futures-lite" ];
+          "gloo-timers" = [ "dep:gloo-timers" ];
+          "kv-log-macro" = [ "dep:kv-log-macro" ];
+          "log" = [ "dep:log" ];
+          "memchr" = [ "dep:memchr" ];
+          "num_cpus" = [ "dep:num_cpus" ];
+          "once_cell" = [ "dep:once_cell" ];
+          "pin-project-lite" = [ "dep:pin-project-lite" ];
+          "pin-utils" = [ "dep:pin-utils" ];
+          "slab" = [ "dep:slab" ];
           "std" = [ "alloc" "crossbeam-utils" "futures-core/std" "futures-io" "memchr" "once_cell" "pin-utils" "slab" "wasm-bindgen-futures" "futures-channel" "async-channel" "async-lock" ];
+          "surf" = [ "dep:surf" ];
           "tokio02" = [ "async-global-executor/tokio02" ];
           "tokio03" = [ "async-global-executor/tokio03" ];
           "tokio1" = [ "async-global-executor/tokio" ];
           "unstable" = [ "std" "async-io" "async-process" ];
+          "wasm-bindgen-futures" = [ "dep:wasm-bindgen-futures" ];
         };
         resolvedDefaultFeatures = [ "alloc" "async-channel" "async-global-executor" "async-io" "async-lock" "crossbeam-utils" "default" "futures-channel" "futures-core" "futures-io" "futures-lite" "gloo-timers" "kv-log-macro" "log" "memchr" "num_cpus" "once_cell" "pin-project-lite" "pin-utils" "slab" "std" "wasm-bindgen-futures" ];
       };
@@ -688,11 +720,24 @@ rec {
           "charsets" = [ "encoding_rs" "encoding_rs_io" ];
           "compress" = [ "flate2" ];
           "default" = [ "compress" "tls" ];
+          "encoding_rs" = [ "dep:encoding_rs" ];
+          "encoding_rs_io" = [ "dep:encoding_rs_io" ];
+          "flate2" = [ "dep:flate2" ];
           "form" = [ "serde" "serde_urlencoded" ];
           "json" = [ "serde" "serde_json" ];
+          "mime" = [ "dep:mime" ];
+          "multipart" = [ "dep:multipart" ];
           "multipart-form" = [ "multipart" "mime" ];
+          "native-tls" = [ "dep:native-tls" ];
+          "openssl" = [ "dep:openssl" ];
+          "rustls" = [ "dep:rustls" ];
+          "serde" = [ "dep:serde" ];
+          "serde_json" = [ "dep:serde_json" ];
+          "serde_urlencoded" = [ "dep:serde_urlencoded" ];
           "tls" = [ "native-tls" "openssl" ];
           "tls-rustls" = [ "rustls" "webpki" "webpki-roots" ];
+          "webpki" = [ "dep:webpki" ];
+          "webpki-roots" = [ "dep:webpki-roots" ];
         };
         resolvedDefaultFeatures = [ "json" "native-tls" "openssl" "rustls" "serde" "serde_json" "tls" "tls-rustls" "webpki" "webpki-roots" ];
       };
@@ -727,9 +772,9 @@ rec {
       };
       "autocfg" = rec {
         crateName = "autocfg";
-        version = "1.0.1";
+        version = "1.1.0";
         edition = "2015";
-        sha256 = "0jj6i9zn4gjl03kjvziqdji6rwx8ykz8zk2ngpc331z2g3fk3c6d";
+        sha256 = "1ylp3cb47ylzabimazvbz9ms6ap784zhb6syaz6c1jqpmcmq0s6l";
         authors = [
           "Josh Stone <cuviper@gmail.com>"
         ];
@@ -861,6 +906,8 @@ rec {
           "The Rust Project Developers"
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "rustc-dep-of-std" = [ "core" "compiler_builtins" ];
         };
         resolvedDefaultFeatures = [ "default" ];
@@ -908,7 +955,9 @@ rec {
             packageId = "generic-array 0.14.4";
           }
         ];
-
+        features = {
+          "block-padding" = [ "dep:block-padding" ];
+        };
       };
       "block-padding" = rec {
         crateName = "block-padding";
@@ -1007,6 +1056,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
@@ -1030,6 +1080,7 @@ rec {
           "Alex Crichton <alex@alexcrichton.com>"
         ];
         features = {
+          "jobserver" = [ "dep:jobserver" ];
           "parallel" = [ "jobserver" ];
         };
       };
@@ -1042,6 +1093,8 @@ rec {
           "Alex Crichton <alex@alexcrichton.com>"
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "rustc-dep-of-std" = [ "core" "compiler_builtins" ];
         };
       };
@@ -1054,7 +1107,44 @@ rec {
           "Alex Crichton <alex@alexcrichton.com>"
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "rustc-dep-of-std" = [ "core" "compiler_builtins" ];
+        };
+      };
+      "chacha20" = rec {
+        crateName = "chacha20";
+        version = "0.9.0";
+        edition = "2021";
+        sha256 = "021g1917r0jzpvgah76667nzk0p3p9kj7ka5zqns1rxrqp3qkz67";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "cfg-if";
+            packageId = "cfg-if 1.0.0";
+          }
+          {
+            name = "cipher";
+            packageId = "cipher";
+          }
+          {
+            name = "cpufeatures";
+            packageId = "cpufeatures";
+            target = { target, features }: ((target."arch" == "x86_64") || (target."arch" == "x86"));
+          }
+        ];
+        devDependencies = [
+          {
+            name = "cipher";
+            packageId = "cipher";
+            features = [ "dev" ];
+          }
+        ];
+        features = {
+          "std" = [ "cipher/std" ];
+          "zeroize" = [ "cipher/zeroize" ];
         };
       };
       "chrono" = rec {
@@ -1098,11 +1188,46 @@ rec {
         features = {
           "clock" = [ "libc" "std" "winapi" ];
           "default" = [ "clock" "std" "oldtime" ];
+          "js-sys" = [ "dep:js-sys" ];
+          "libc" = [ "dep:libc" ];
           "oldtime" = [ "time" ];
+          "pure-rust-locales" = [ "dep:pure-rust-locales" ];
+          "rustc-serialize" = [ "dep:rustc-serialize" ];
+          "serde" = [ "dep:serde" ];
+          "time" = [ "dep:time" ];
           "unstable-locales" = [ "pure-rust-locales" "alloc" ];
+          "wasm-bindgen" = [ "dep:wasm-bindgen" ];
           "wasmbind" = [ "wasm-bindgen" "js-sys" ];
+          "winapi" = [ "dep:winapi" ];
         };
         resolvedDefaultFeatures = [ "clock" "default" "libc" "oldtime" "std" "time" "winapi" ];
+      };
+      "cipher" = rec {
+        crateName = "cipher";
+        version = "0.4.3";
+        edition = "2021";
+        sha256 = "17mmmqaalirdx7bpdhrgzp1sd392zm08mjrr24cjr57pz1q351yi";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "crypto-common";
+            packageId = "crypto-common";
+          }
+          {
+            name = "inout";
+            packageId = "inout";
+          }
+        ];
+        features = {
+          "blobby" = [ "dep:blobby" ];
+          "block-padding" = [ "inout/block-padding" ];
+          "dev" = [ "blobby" ];
+          "rand_core" = [ "crypto-common/rand_core" ];
+          "std" = [ "alloc" "crypto-common/std" "inout/std" ];
+          "zeroize" = [ "dep:zeroize" ];
+        };
       };
       "clap" = rec {
         crateName = "clap";
@@ -1148,13 +1273,20 @@ rec {
           }
         ];
         features = {
+          "ansi_term" = [ "dep:ansi_term" ];
+          "atty" = [ "dep:atty" ];
+          "clippy" = [ "dep:clippy" ];
           "color" = [ "ansi_term" "atty" ];
           "default" = [ "suggestions" "color" "vec_map" ];
           "doc" = [ "yaml" ];
           "lints" = [ "clippy" ];
+          "strsim" = [ "dep:strsim" ];
           "suggestions" = [ "strsim" ];
+          "term_size" = [ "dep:term_size" ];
+          "vec_map" = [ "dep:vec_map" ];
           "wrap_help" = [ "term_size" "textwrap/term_size" ];
           "yaml" = [ "yaml-rust" ];
+          "yaml-rust" = [ "dep:yaml-rust" ];
         };
         resolvedDefaultFeatures = [ "ansi_term" "atty" "color" "default" "strsim" "suggestions" "vec_map" ];
       };
@@ -1206,7 +1338,12 @@ rec {
           "hjson" = [ "serde-hjson" ];
           "ini" = [ "rust-ini" ];
           "json" = [ "serde_json" ];
+          "rust-ini" = [ "dep:rust-ini" ];
+          "serde-hjson" = [ "dep:serde-hjson" ];
+          "serde_json" = [ "dep:serde_json" ];
+          "toml" = [ "dep:toml" ];
           "yaml" = [ "yaml-rust" ];
+          "yaml-rust" = [ "dep:yaml-rust" ];
         };
         resolvedDefaultFeatures = [ "yaml" "yaml-rust" ];
       };
@@ -1240,8 +1377,10 @@ rec {
           }
         ];
         features = {
+          "chrono" = [ "dep:chrono" ];
           "mac_os_10_7_support" = [ "core-foundation-sys/mac_os_10_7_support" ];
           "mac_os_10_8_features" = [ "core-foundation-sys/mac_os_10_8_features" ];
+          "uuid" = [ "dep:uuid" ];
           "with-chrono" = [ "chrono" ];
           "with-uuid" = [ "uuid" ];
         };
@@ -1300,9 +1439,35 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "lazy_static" = [ "dep:lazy_static" ];
+          "loom" = [ "dep:loom" ];
           "std" = [ "lazy_static" ];
         };
         resolvedDefaultFeatures = [ "default" "lazy_static" "std" ];
+      };
+      "crypto-common" = rec {
+        crateName = "crypto-common";
+        version = "0.1.6";
+        edition = "2018";
+        sha256 = "1cvby95a6xg7kxdz5ln3rl9xh66nz66w46mm3g56ri1z5x815yqv";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "generic-array";
+            packageId = "generic-array 0.14.4";
+            features = [ "more_lengths" ];
+          }
+          {
+            name = "typenum";
+            packageId = "typenum";
+          }
+        ];
+        features = {
+          "getrandom" = [ "rand_core/getrandom" ];
+          "rand_core" = [ "dep:rand_core" ];
+        };
       };
       "crypto-mac 0.10.1" = rec {
         crateName = "crypto-mac";
@@ -1324,6 +1489,8 @@ rec {
           }
         ];
         features = {
+          "blobby" = [ "dep:blobby" ];
+          "cipher" = [ "dep:cipher" ];
           "dev" = [ "blobby" ];
         };
       };
@@ -1347,6 +1514,8 @@ rec {
           }
         ];
         features = {
+          "blobby" = [ "dep:blobby" ];
+          "block-cipher" = [ "dep:block-cipher" ];
           "dev" = [ "blobby" ];
         };
       };
@@ -1415,6 +1584,7 @@ rec {
           }
         ];
         features = {
+          "blobby" = [ "dep:blobby" ];
           "dev" = [ "blobby" ];
         };
       };
@@ -1433,6 +1603,7 @@ rec {
           }
         ];
         features = {
+          "blobby" = [ "dep:blobby" ];
           "dev" = [ "blobby" ];
           "std" = [ "alloc" ];
         };
@@ -1516,6 +1687,8 @@ rec {
         features = {
           "default" = [ "alloc" ];
           "fast-legacy-encode" = [ "fast-hangul-encode" "fast-hanja-encode" "fast-kanji-encode" "fast-gb-hanzi-encode" "fast-big5-hanzi-encode" ];
+          "packed_simd" = [ "dep:packed_simd" ];
+          "serde" = [ "dep:serde" ];
           "simd-accel" = [ "packed_simd" "packed_simd/into_bits" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" ];
@@ -1680,6 +1853,7 @@ rec {
           "compat" = [ "std" "futures-util/compat" ];
           "default" = [ "std" "async-await" "executor" ];
           "executor" = [ "std" "futures-executor/std" ];
+          "futures-executor" = [ "dep:futures-executor" ];
           "io-compat" = [ "compat" "futures-util/io-compat" ];
           "read-initializer" = [ "futures-io/read-initializer" "futures-util/read-initializer" ];
           "std" = [ "alloc" "futures-core/std" "futures-task/std" "futures-io/std" "futures-sink/std" "futures-util/std" "futures-util/io" "futures-util/channel" ];
@@ -1713,6 +1887,7 @@ rec {
         features = {
           "alloc" = [ "futures-core/alloc" ];
           "default" = [ "std" ];
+          "futures-sink" = [ "dep:futures-sink" ];
           "sink" = [ "futures-sink" ];
           "std" = [ "alloc" "futures-core/std" ];
         };
@@ -1759,6 +1934,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "num_cpus" = [ "dep:num_cpus" ];
           "std" = [ "futures-core/std" "futures-task/std" "futures-util/std" ];
           "thread-pool" = [ "std" "num_cpus" ];
         };
@@ -1824,7 +2000,12 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "fastrand" = [ "dep:fastrand" ];
+          "futures-io" = [ "dep:futures-io" ];
+          "memchr" = [ "dep:memchr" ];
+          "parking" = [ "dep:parking" ];
           "std" = [ "alloc" "fastrand" "futures-io" "parking" "memchr" "waker-fn" ];
+          "waker-fn" = [ "dep:waker-fn" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "fastrand" "futures-io" "memchr" "parking" "std" "waker-fn" ];
       };
@@ -1979,11 +2160,21 @@ rec {
           "channel" = [ "std" "futures-channel" ];
           "compat" = [ "std" "futures_01" ];
           "default" = [ "std" "async-await" "async-await-macro" ];
+          "futures-channel" = [ "dep:futures-channel" ];
+          "futures-io" = [ "dep:futures-io" ];
+          "futures-macro" = [ "dep:futures-macro" ];
+          "futures-sink" = [ "dep:futures-sink" ];
+          "futures_01" = [ "dep:futures_01" ];
           "io" = [ "std" "futures-io" "memchr" ];
           "io-compat" = [ "io" "compat" "tokio-io" ];
+          "memchr" = [ "dep:memchr" ];
+          "proc-macro-hack" = [ "dep:proc-macro-hack" ];
+          "proc-macro-nested" = [ "dep:proc-macro-nested" ];
           "read-initializer" = [ "io" "futures-io/read-initializer" "futures-io/unstable" ];
           "sink" = [ "futures-sink" ];
+          "slab" = [ "dep:slab" ];
           "std" = [ "alloc" "futures-core/std" "futures-task/std" "slab" ];
+          "tokio-io" = [ "dep:tokio-io" ];
           "unstable" = [ "futures-core/unstable" "futures-task/unstable" ];
           "write-all-vectored" = [ "io" ];
         };
@@ -2005,7 +2196,9 @@ rec {
             packageId = "typenum";
           }
         ];
-
+        features = {
+          "serde" = [ "dep:serde" ];
+        };
       };
       "generic-array 0.14.4" = rec {
         crateName = "generic-array";
@@ -2030,7 +2223,9 @@ rec {
           }
         ];
         features = {
+          "serde" = [ "dep:serde" ];
         };
+        resolvedDefaultFeatures = [ "more_lengths" ];
       };
       "getrandom" = rec {
         crateName = "getrandom";
@@ -2058,8 +2253,12 @@ rec {
           }
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "js" = [ "wasm-bindgen" "js-sys" ];
+          "js-sys" = [ "dep:js-sys" ];
           "rustc-dep-of-std" = [ "compiler_builtins" "core" "libc/rustc-dep-of-std" "wasi/rustc-dep-of-std" ];
+          "wasm-bindgen" = [ "dep:wasm-bindgen" ];
         };
         resolvedDefaultFeatures = [ "std" ];
       };
@@ -2098,6 +2297,8 @@ rec {
         ];
         features = {
           "futures" = [ "futures-core" "futures-channel" ];
+          "futures-channel" = [ "dep:futures-channel" ];
+          "futures-core" = [ "dep:futures-core" ];
         };
         resolvedDefaultFeatures = [ "default" "futures" "futures-channel" "futures-core" ];
       };
@@ -2211,7 +2412,9 @@ rec {
         ];
         features = {
           "dir_source" = [ "walkdir" ];
+          "rhai" = [ "dep:rhai" ];
           "script_helper" = [ "rhai" ];
+          "walkdir" = [ "dep:walkdir" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };
@@ -2232,9 +2435,16 @@ rec {
           }
         ];
         features = {
+          "ahash" = [ "dep:ahash" ];
           "ahash-compile-time-rng" = [ "ahash/compile-time-rng" ];
+          "alloc" = [ "dep:alloc" ];
+          "bumpalo" = [ "dep:bumpalo" ];
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "default" = [ "ahash" "inline-more" ];
+          "rayon" = [ "dep:rayon" ];
           "rustc-dep-of-std" = [ "nightly" "core" "compiler_builtins" "alloc" "rustc-internal-api" ];
+          "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "ahash" "default" "inline-more" "raw" ];
       };
@@ -2261,9 +2471,15 @@ rec {
           }
         ];
         features = {
+          "ahash" = [ "dep:ahash" ];
           "ahash-compile-time-rng" = [ "ahash/compile-time-rng" ];
+          "alloc" = [ "dep:alloc" ];
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "default" = [ "ahash" "inline-more" ];
+          "rayon" = [ "dep:rayon" ];
           "rustc-dep-of-std" = [ "nightly" "core" "compiler_builtins" "alloc" "rustc-internal-api" ];
+          "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "ahash" "default" "inline-more" ];
       };
@@ -2344,6 +2560,8 @@ rec {
           }
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "rustc-dep-of-std" = [ "core" "compiler_builtins/rustc-dep-of-std" "libc/rustc-dep-of-std" ];
         };
         resolvedDefaultFeatures = [ "default" ];
@@ -2358,6 +2576,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "std" ];
@@ -2602,8 +2821,11 @@ rec {
         features = {
           "ffi" = [ "libc" ];
           "full" = [ "client" "http1" "http2" "server" "stream" "runtime" ];
+          "h2" = [ "dep:h2" ];
           "http2" = [ "h2" ];
+          "libc" = [ "dep:libc" ];
           "runtime" = [ "tcp" "tokio/rt" ];
+          "socket2" = [ "dep:socket2" ];
           "tcp" = [ "socket2" "tokio/net" "tokio/rt" "tokio/time" ];
         };
         resolvedDefaultFeatures = [ "client" "h2" "http1" "http2" "runtime" "server" "socket2" "stream" "tcp" ];
@@ -2661,9 +2883,12 @@ rec {
           }
         ];
         features = {
+          "ct-logs" = [ "dep:ct-logs" ];
           "default" = [ "native-tokio" ];
           "native-tokio" = [ "tokio-runtime" "rustls-native-certs" ];
+          "rustls-native-certs" = [ "dep:rustls-native-certs" ];
           "tokio-runtime" = [ "hyper/runtime" "ct-logs" ];
+          "webpki-roots" = [ "dep:webpki-roots" ];
           "webpki-tokio" = [ "tokio-runtime" "webpki-roots" ];
         };
       };
@@ -2764,9 +2989,30 @@ rec {
           }
         ];
         features = {
+          "rayon" = [ "dep:rayon" ];
+          "serde" = [ "dep:serde" ];
           "serde-1" = [ "serde" ];
         };
         resolvedDefaultFeatures = [ "std" ];
+      };
+      "inout" = rec {
+        crateName = "inout";
+        version = "0.1.3";
+        edition = "2021";
+        sha256 = "1xf9gf09nc7y1a261xlfqsf66yn6mb81ahlzzyyd1934sr9hbhd0";
+        authors = [
+          "RustCrypto Developers"
+        ];
+        dependencies = [
+          {
+            name = "generic-array";
+            packageId = "generic-array 0.14.4";
+          }
+        ];
+        features = {
+          "block-padding" = [ "dep:block-padding" ];
+          "std" = [ "block-padding/std" ];
+        };
       };
       "instant" = rec {
         crateName = "instant";
@@ -2783,8 +3029,13 @@ rec {
           }
         ];
         features = {
+          "js-sys" = [ "dep:js-sys" ];
           "now" = [ "time" ];
+          "stdweb" = [ "dep:stdweb" ];
+          "time" = [ "dep:time" ];
           "wasm-bindgen" = [ "js-sys" "wasm-bindgen_rs" "web-sys" ];
+          "wasm-bindgen_rs" = [ "dep:wasm-bindgen_rs" ];
+          "web-sys" = [ "dep:web-sys" ];
         };
       };
       "ipnet" = rec {
@@ -2795,7 +3046,9 @@ rec {
         authors = [
           "Kris Price <kris@krisprice.nz>"
         ];
-
+        features = {
+          "serde" = [ "dep:serde" ];
+        };
       };
       "itoa" = rec {
         crateName = "itoa";
@@ -2852,6 +3105,7 @@ rec {
           "Marvin Löbel <loebel.marvin@gmail.com>"
         ];
         features = {
+          "spin" = [ "dep:spin" ];
           "spin_no_std" = [ "spin" ];
         };
       };
@@ -2891,11 +3145,18 @@ rec {
           }
         ];
         features = {
+          "arrayvec" = [ "dep:arrayvec" ];
           "correct" = [ "arrayvec" "static_assertions" "table" ];
           "default" = [ "correct" "ryu" "std" ];
+          "dtoa" = [ "dep:dtoa" ];
           "format" = [ "static_assertions" ];
           "grisu3" = [ "dtoa" ];
+          "libm" = [ "dep:libm" ];
           "property_tests" = [ "quickcheck" "proptest" ];
+          "proptest" = [ "dep:proptest" ];
+          "quickcheck" = [ "dep:quickcheck" ];
+          "ryu" = [ "dep:ryu" ];
+          "static_assertions" = [ "dep:static_assertions" ];
         };
         resolvedDefaultFeatures = [ "arrayvec" "correct" "default" "ryu" "static_assertions" "std" "table" ];
       };
@@ -2910,6 +3171,7 @@ rec {
         features = {
           "default" = [ "std" ];
           "rustc-dep-of-std" = [ "align" "rustc-std-workspace-core" ];
+          "rustc-std-workspace-core" = [ "dep:rustc-std-workspace-core" ];
           "use_std" = [ "std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
@@ -2924,15 +3186,19 @@ rec {
           "Andrew Paseltiner <apaseltiner@gmail.com>"
         ];
         features = {
+          "clippy" = [ "dep:clippy" ];
+          "heapsize" = [ "dep:heapsize" ];
           "heapsize_impl" = [ "heapsize" ];
+          "serde" = [ "dep:serde" ];
           "serde_impl" = [ "serde" "serde_test" ];
+          "serde_test" = [ "dep:serde_test" ];
         };
       };
       "lock_api" = rec {
         crateName = "lock_api";
-        version = "0.4.5";
+        version = "0.4.8";
         edition = "2018";
-        sha256 = "028izfyraynijd9h9x5miv1vmg6sjnw1v95wgm7f4xlr7h4lsaki";
+        sha256 = "1463iqx8adn26vz5lkn5qh8kpgzj32vwzl8hhbycn9dgmidbz04z";
         authors = [
           "Amanieu d'Antras <amanieu@gmail.com>"
         ];
@@ -2943,7 +3209,15 @@ rec {
             usesDefaultFeatures = false;
           }
         ];
+        buildDependencies = [
+          {
+            name = "autocfg";
+            packageId = "autocfg";
+          }
+        ];
         features = {
+          "owning_ref" = [ "dep:owning_ref" ];
+          "serde" = [ "dep:serde" ];
         };
       };
       "log" = rec {
@@ -2978,6 +3252,9 @@ rec {
           "kv_unstable_serde" = [ "kv_unstable_std" "value-bag/serde" "serde" ];
           "kv_unstable_std" = [ "std" "kv_unstable" "value-bag/error" ];
           "kv_unstable_sval" = [ "kv_unstable" "value-bag/sval" "sval" ];
+          "serde" = [ "dep:serde" ];
+          "sval" = [ "dep:sval" ];
+          "value-bag" = [ "dep:value-bag" ];
         };
         resolvedDefaultFeatures = [ "kv_unstable" "std" "value-bag" ];
       };
@@ -2998,6 +3275,7 @@ rec {
         ];
         features = {
           "default" = [ "hashbrown" ];
+          "hashbrown" = [ "dep:hashbrown" ];
           "nightly" = [ "hashbrown" "hashbrown/nightly" ];
         };
         resolvedDefaultFeatures = [ "default" "hashbrown" ];
@@ -3070,7 +3348,10 @@ rec {
           "bluss"
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "default" = [ "std" ];
+          "libc" = [ "dep:libc" ];
           "rustc-dep-of-std" = [ "core" "compiler_builtins" ];
           "use_std" = [ "std" ];
         };
@@ -3278,7 +3559,10 @@ rec {
         ];
         features = {
           "default" = [ "std" "lexical" ];
+          "lazy_static" = [ "dep:lazy_static" ];
           "lexical" = [ "lexical-core" ];
+          "lexical-core" = [ "dep:lexical-core" ];
+          "regex" = [ "dep:regex" ];
           "regexp" = [ "regex" ];
           "regexp_macros" = [ "regexp" "lazy_static" ];
           "std" = [ "alloc" "memchr/use_std" ];
@@ -3349,6 +3633,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "libm" = [ "dep:libm" ];
         };
       };
       "num_cpus" = rec {
@@ -3374,15 +3659,18 @@ rec {
       };
       "once_cell" = rec {
         crateName = "once_cell";
-        version = "1.8.0";
+        version = "1.13.1";
         edition = "2018";
-        sha256 = "0mkbbxg6416z11r2yzsq91cqrkj9w1iyx5hakq15h5sbnriwnbv9";
+        sha256 = "0kjyjf8yhm1rv5af0f0g7y66mzdy1l1865mr9sw76jbb43d68j07";
         authors = [
           "Aleksey Kladov <aleksey.kladov@gmail.com>"
         ];
         features = {
           "alloc" = [ "race" ];
+          "atomic-polyfill" = [ "dep:atomic-polyfill" ];
           "default" = [ "std" ];
+          "parking_lot" = [ "parking_lot_core" ];
+          "parking_lot_core" = [ "dep:parking_lot_core" ];
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "race" "std" "unstable" ];
@@ -3492,6 +3780,7 @@ rec {
           }
         ];
         features = {
+          "openssl-src" = [ "dep:openssl-src" ];
           "vendored" = [ "openssl-src" ];
         };
       };
@@ -3598,7 +3887,10 @@ rec {
           }
         ];
         features = {
+          "backtrace" = [ "dep:backtrace" ];
           "deadlock_detection" = [ "petgraph" "thread-id" "backtrace" ];
+          "petgraph" = [ "dep:petgraph" ];
+          "thread-id" = [ "dep:thread-id" ];
         };
       };
       "percent-encoding 1.0.1" = rec {
@@ -3639,6 +3931,8 @@ rec {
         ];
         features = {
           "pretty-print" = [ "serde" "serde_json" ];
+          "serde" = [ "dep:serde" ];
+          "serde_json" = [ "dep:serde_json" ];
         };
       };
       "pest_derive" = rec {
@@ -3965,6 +4259,12 @@ rec {
           "alloc" = [ "rand_core/alloc" ];
           "default" = [ "std" "std_rng" ];
           "getrandom" = [ "rand_core/getrandom" ];
+          "libc" = [ "dep:libc" ];
+          "log" = [ "dep:log" ];
+          "packed_simd" = [ "dep:packed_simd" ];
+          "rand_chacha" = [ "dep:rand_chacha" ];
+          "rand_hc" = [ "dep:rand_hc" ];
+          "serde" = [ "dep:serde" ];
           "serde1" = [ "serde" "rand_core/serde1" ];
           "simd_support" = [ "packed_simd" ];
           "std" = [ "rand_core/std" "rand_chacha/std" "alloc" "getrandom" "libc" ];
@@ -3996,6 +4296,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
           "serde1" = [ "serde" ];
           "std" = [ "ppv-lite86/std" ];
         };
@@ -4018,6 +4319,8 @@ rec {
           }
         ];
         features = {
+          "getrandom" = [ "dep:getrandom" ];
+          "serde" = [ "dep:serde" ];
           "serde1" = [ "serde" ];
           "std" = [ "alloc" "getrandom" "getrandom/std" ];
         };
@@ -4079,6 +4382,7 @@ rec {
         features = {
           "auth" = [ "rust-argon2" ];
           "default" = [ "auth" ];
+          "rust-argon2" = [ "dep:rust-argon2" ];
         };
       };
       "regex" = rec {
@@ -4107,7 +4411,9 @@ rec {
           }
         ];
         features = {
+          "aho-corasick" = [ "dep:aho-corasick" ];
           "default" = [ "std" "perf" "unicode" "regex-syntax/default" ];
+          "memchr" = [ "dep:memchr" ];
           "perf" = [ "perf-cache" "perf-dfa" "perf-inline" "perf-literal" ];
           "perf-literal" = [ "aho-corasick" "memchr" ];
           "unicode" = [ "unicode-age" "unicode-bool" "unicode-case" "unicode-gencat" "unicode-perl" "unicode-script" "unicode-segment" "regex-syntax/unicode" ];
@@ -4140,6 +4446,8 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "fst" = [ "dep:fst" ];
+          "regex-syntax" = [ "dep:regex-syntax" ];
           "std" = [ "regex-syntax" ];
           "transducer" = [ "std" "fst" ];
         };
@@ -4389,24 +4697,41 @@ rec {
         ];
         features = {
           "__rustls" = [ "hyper-rustls" "tokio-rustls" "rustls" "__tls" ];
+          "async-compression" = [ "dep:async-compression" ];
           "blocking" = [ "futures-util/io" "tokio/rt-multi-thread" "tokio/sync" ];
           "brotli" = [ "async-compression" "async-compression/brotli" "tokio-util" ];
+          "cookie_crate" = [ "dep:cookie_crate" ];
+          "cookie_store" = [ "dep:cookie_store" ];
           "cookies" = [ "cookie_crate" "cookie_store" "time" ];
           "default" = [ "default-tls" ];
           "default-tls" = [ "hyper-tls" "native-tls-crate" "__tls" "tokio-native-tls" ];
           "deflate" = [ "async-compression" "async-compression/zlib" "tokio-util" ];
           "gzip" = [ "async-compression" "async-compression/gzip" "tokio-util" ];
+          "hyper-rustls" = [ "dep:hyper-rustls" ];
+          "hyper-tls" = [ "dep:hyper-tls" ];
           "json" = [ "serde_json" ];
+          "mime_guess" = [ "dep:mime_guess" ];
           "multipart" = [ "mime_guess" ];
           "native-tls" = [ "default-tls" ];
           "native-tls-alpn" = [ "native-tls" "native-tls-crate/alpn" ];
+          "native-tls-crate" = [ "dep:native-tls-crate" ];
           "native-tls-vendored" = [ "native-tls" "native-tls-crate/vendored" ];
+          "rustls" = [ "dep:rustls" ];
+          "rustls-native-certs" = [ "dep:rustls-native-certs" ];
           "rustls-tls" = [ "rustls-tls-webpki-roots" ];
           "rustls-tls-manual-roots" = [ "__rustls" ];
           "rustls-tls-native-roots" = [ "rustls-native-certs" "__rustls" ];
           "rustls-tls-webpki-roots" = [ "webpki-roots" "__rustls" ];
+          "serde_json" = [ "dep:serde_json" ];
           "socks" = [ "tokio-socks" ];
+          "time" = [ "dep:time" ];
+          "tokio-native-tls" = [ "dep:tokio-native-tls" ];
+          "tokio-rustls" = [ "dep:tokio-rustls" ];
+          "tokio-socks" = [ "dep:tokio-socks" ];
+          "tokio-util" = [ "dep:tokio-util" ];
           "trust-dns" = [ "trust-dns-resolver" ];
+          "trust-dns-resolver" = [ "dep:trust-dns-resolver" ];
+          "webpki-roots" = [ "dep:webpki-roots" ];
         };
         resolvedDefaultFeatures = [ "__rustls" "__tls" "default-tls" "hyper-rustls" "hyper-tls" "json" "native-tls" "native-tls-crate" "rustls" "rustls-tls" "rustls-tls-webpki-roots" "serde_json" "stream" "tokio-native-tls" "tokio-rustls" "webpki-roots" ];
       };
@@ -4483,6 +4808,7 @@ rec {
         features = {
           "default" = [ "alloc" "dev_urandom_fallback" ];
           "dev_urandom_fallback" = [ "once_cell" ];
+          "once_cell" = [ "dep:once_cell" ];
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "dev_urandom_fallback" "once_cell" ];
@@ -4508,6 +4834,7 @@ rec {
         ];
         features = {
           "case-insensitive" = [ "unicase" ];
+          "unicase" = [ "dep:unicase" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };
@@ -4677,6 +5004,7 @@ rec {
         ];
         features = {
           "default" = [ "logging" ];
+          "log" = [ "dep:log" ];
           "logging" = [ "log" ];
         };
         resolvedDefaultFeatures = [ "default" "log" "logging" ];
@@ -4720,6 +5048,7 @@ rec {
         ];
         features = {
           "default" = [ "logging" ];
+          "log" = [ "dep:log" ];
           "logging" = [ "log" ];
         };
         resolvedDefaultFeatures = [ "dangerous_configuration" "default" "log" "logging" ];
@@ -4733,6 +5062,7 @@ rec {
           "David Tolnay <dtolnay@gmail.com>"
         ];
         features = {
+          "no-panic" = [ "dep:no-panic" ];
         };
       };
       "schannel" = rec {
@@ -4829,6 +5159,8 @@ rec {
           "OSX_10_14" = [ "OSX_10_13" "security-framework-sys/OSX_10_14" ];
           "OSX_10_9" = [ "security-framework-sys/OSX_10_9" ];
           "default" = [ "OSX_10_9" ];
+          "log" = [ "dep:log" ];
+          "num-bigint" = [ "dep:num-bigint" ];
           "serial-number-bigint" = [ "num-bigint" ];
         };
         resolvedDefaultFeatures = [ "OSX_10_9" "default" ];
@@ -4887,6 +5219,7 @@ rec {
         features = {
           "default" = [ "std" ];
           "derive" = [ "serde_derive" ];
+          "serde_derive" = [ "dep:serde_derive" ];
         };
         resolvedDefaultFeatures = [ "default" "derive" "serde_derive" "std" ];
       };
@@ -5002,6 +5335,7 @@ rec {
         features = {
           "alloc" = [ "serde/alloc" ];
           "default" = [ "std" ];
+          "indexmap" = [ "dep:indexmap" ];
           "preserve_order" = [ "indexmap" ];
           "std" = [ "serde/std" ];
         };
@@ -5101,6 +5435,8 @@ rec {
           "asm" = [ "sha1-asm" ];
           "asm-aarch64" = [ "asm" "libc" ];
           "default" = [ "std" ];
+          "libc" = [ "dep:libc" ];
+          "sha1-asm" = [ "dep:sha1-asm" ];
           "std" = [ "digest/std" ];
         };
       };
@@ -5147,6 +5483,7 @@ rec {
           "asm" = [ "sha1-asm" ];
           "asm-aarch64" = [ "asm" ];
           "default" = [ "std" ];
+          "sha1-asm" = [ "dep:sha1-asm" ];
           "std" = [ "digest/std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
@@ -5193,6 +5530,7 @@ rec {
           "asm" = [ "sha2-asm" ];
           "asm-aarch64" = [ "asm" ];
           "default" = [ "std" ];
+          "sha2-asm" = [ "dep:sha2-asm" ];
           "std" = [ "digest/std" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
@@ -5211,7 +5549,9 @@ rec {
             packageId = "lazy_static";
           }
         ];
-
+        features = {
+          "loom" = [ "dep:loom" ];
+        };
       };
       "signal-hook-registry" = rec {
         crateName = "signal-hook-registry";
@@ -5250,6 +5590,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
@@ -5262,6 +5603,7 @@ rec {
           "The Servo Project Developers"
         ];
         features = {
+          "serde" = [ "dep:serde" ];
         };
       };
       "socket2" = rec {
@@ -5383,6 +5725,7 @@ rec {
           "default" = [ "derive" "parsing" "printing" "clone-impls" "proc-macro" ];
           "printing" = [ "quote" ];
           "proc-macro" = [ "proc-macro2/proc-macro" "quote/proc-macro" ];
+          "quote" = [ "dep:quote" ];
           "test" = [ "syn-test-suite/all-features" ];
         };
         resolvedDefaultFeatures = [ "clone-impls" "default" "derive" "extra-traits" "full" "parsing" "printing" "proc-macro" "quote" "visit" "visit-mut" ];
@@ -5485,7 +5828,10 @@ rec {
             packageId = "unicode-width";
           }
         ];
-
+        features = {
+          "hyphenation" = [ "dep:hyphenation" ];
+          "term_size" = [ "dep:term_size" ];
+        };
       };
       "thiserror" = rec {
         crateName = "thiserror";
@@ -5542,7 +5888,9 @@ rec {
             packageId = "once_cell";
           }
         ];
-
+        features = {
+          "criterion" = [ "dep:criterion" ];
+        };
       };
       "time 0.1.43" = rec {
         crateName = "time";
@@ -5571,7 +5919,9 @@ rec {
             features = [ "std" "processthreadsapi" "winbase" ];
           }
         ];
-
+        features = {
+          "rustc-serialize" = [ "dep:rustc-serialize" ];
+        };
       };
       "time 0.2.27" = rec {
         crateName = "time";
@@ -5610,7 +5960,12 @@ rec {
         ];
         features = {
           "default" = [ "deprecated" "std" ];
+          "libc" = [ "dep:libc" ];
+          "rand" = [ "dep:rand" ];
+          "serde" = [ "dep:serde" ];
           "std" = [ "libc" "winapi" "stdweb" "standback/std" ];
+          "stdweb" = [ "dep:stdweb" ];
+          "winapi" = [ "dep:winapi" ];
         };
       };
       "time-macros" = rec {
@@ -5686,7 +6041,10 @@ rec {
         ];
         features = {
           "alloc" = [ "tinyvec_macros" ];
+          "arbitrary" = [ "dep:arbitrary" ];
           "rustc_1_55" = [ "rustc_1_40" ];
+          "serde" = [ "dep:serde" ];
+          "tinyvec_macros" = [ "dep:tinyvec_macros" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "tinyvec_macros" ];
       };
@@ -5782,14 +6140,25 @@ rec {
           }
         ];
         features = {
+          "bytes" = [ "dep:bytes" ];
           "full" = [ "fs" "io-util" "io-std" "macros" "net" "parking_lot" "process" "rt" "rt-multi-thread" "signal" "sync" "time" ];
           "io-util" = [ "memchr" "bytes" ];
+          "libc" = [ "dep:libc" ];
           "macros" = [ "tokio-macros" ];
+          "memchr" = [ "dep:memchr" ];
+          "mio" = [ "dep:mio" ];
           "net" = [ "libc" "mio/os-poll" "mio/os-util" "mio/tcp" "mio/udp" "mio/uds" "winapi/namedpipeapi" ];
+          "num_cpus" = [ "dep:num_cpus" ];
+          "once_cell" = [ "dep:once_cell" ];
+          "parking_lot" = [ "dep:parking_lot" ];
           "process" = [ "bytes" "once_cell" "libc" "mio/os-poll" "mio/os-util" "mio/uds" "signal-hook-registry" "winapi/threadpoollegacyapiset" ];
           "rt-multi-thread" = [ "num_cpus" "rt" ];
           "signal" = [ "once_cell" "libc" "mio/os-poll" "mio/uds" "mio/os-util" "signal-hook-registry" "winapi/consoleapi" ];
+          "signal-hook-registry" = [ "dep:signal-hook-registry" ];
           "test-util" = [ "rt" "sync" "time" ];
+          "tokio-macros" = [ "dep:tokio-macros" ];
+          "tracing" = [ "dep:tracing" ];
+          "winapi" = [ "dep:winapi" ];
         };
         resolvedDefaultFeatures = [ "bytes" "default" "fs" "full" "io-std" "io-util" "libc" "macros" "memchr" "mio" "net" "num_cpus" "once_cell" "parking_lot" "process" "rt" "rt-multi-thread" "signal" "signal-hook-registry" "sync" "time" "tokio-macros" "winapi" ];
       };
@@ -5917,6 +6286,7 @@ rec {
           "signal" = [ "tokio/signal" ];
           "sync" = [ "tokio/sync" "tokio-util" ];
           "time" = [ "tokio/time" ];
+          "tokio-util" = [ "dep:tokio-util" ];
         };
         resolvedDefaultFeatures = [ "default" "time" ];
       };
@@ -5966,8 +6336,11 @@ rec {
           "__docs_rs" = [ "futures-util" ];
           "compat" = [ "futures-io" ];
           "full" = [ "codec" "compat" "io" "time" "net" "rt" ];
+          "futures-io" = [ "dep:futures-io" ];
+          "futures-util" = [ "dep:futures-util" ];
           "net" = [ "tokio/net" ];
           "rt" = [ "tokio/rt" ];
+          "slab" = [ "dep:slab" ];
           "time" = [ "tokio/time" "slab" ];
         };
         resolvedDefaultFeatures = [ "codec" "default" "io" ];
@@ -5987,6 +6360,7 @@ rec {
           }
         ];
         features = {
+          "indexmap" = [ "dep:indexmap" ];
           "preserve_order" = [ "indexmap" ];
         };
         resolvedDefaultFeatures = [ "default" ];
@@ -6033,8 +6407,10 @@ rec {
         features = {
           "attributes" = [ "tracing-attributes" ];
           "default" = [ "std" "attributes" ];
+          "log" = [ "dep:log" ];
           "log-always" = [ "log" ];
           "std" = [ "tracing-core/std" ];
+          "tracing-attributes" = [ "dep:tracing-attributes" ];
         };
         resolvedDefaultFeatures = [ "attributes" "default" "std" "tracing-attributes" ];
       };
@@ -6085,6 +6461,7 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "lazy_static" = [ "dep:lazy_static" ];
           "std" = [ "lazy_static" ];
         };
         resolvedDefaultFeatures = [ "default" "lazy_static" "std" ];
@@ -6113,6 +6490,7 @@ rec {
         ];
         features = {
           "default" = [ "log-tracer" "trace-logger" "std" ];
+          "env_logger" = [ "dep:env_logger" ];
           "std" = [ "log/std" ];
         };
         resolvedDefaultFeatures = [ "default" "log-tracer" "std" "trace-logger" ];
@@ -6244,11 +6622,25 @@ rec {
         ];
         features = {
           "ansi" = [ "fmt" "ansi_term" ];
+          "ansi_term" = [ "dep:ansi_term" ];
+          "chrono" = [ "dep:chrono" ];
           "default" = [ "env-filter" "smallvec" "fmt" "ansi" "chrono" "tracing-log" "json" ];
           "env-filter" = [ "matchers" "regex" "lazy_static" "tracing" ];
           "fmt" = [ "registry" ];
           "json" = [ "tracing-serde" "serde" "serde_json" ];
+          "lazy_static" = [ "dep:lazy_static" ];
+          "matchers" = [ "dep:matchers" ];
+          "parking_lot" = [ "dep:parking_lot" ];
+          "regex" = [ "dep:regex" ];
           "registry" = [ "sharded-slab" "thread_local" ];
+          "serde" = [ "dep:serde" ];
+          "serde_json" = [ "dep:serde_json" ];
+          "sharded-slab" = [ "dep:sharded-slab" ];
+          "smallvec" = [ "dep:smallvec" ];
+          "thread_local" = [ "dep:thread_local" ];
+          "tracing" = [ "dep:tracing" ];
+          "tracing-log" = [ "dep:tracing-log" ];
+          "tracing-serde" = [ "dep:tracing-serde" ];
         };
         resolvedDefaultFeatures = [ "ansi" "ansi_term" "chrono" "default" "env-filter" "fmt" "json" "lazy_static" "matchers" "regex" "registry" "serde" "serde_json" "sharded-slab" "smallvec" "thread_local" "tracing" "tracing-log" "tracing-serde" ];
       };
@@ -6316,7 +6708,10 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "flame" = [ "dep:flame" ];
           "flame_it" = [ "flame" "flamer" ];
+          "flamer" = [ "dep:flamer" ];
+          "serde" = [ "dep:serde" ];
           "with_serde" = [ "serde" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
@@ -6352,7 +6747,10 @@ rec {
           "Manish Goregaokar <manishsmail@gmail.com>"
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "rustc-dep-of-std" = [ "std" "core" "compiler_builtins" ];
+          "std" = [ "dep:std" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };
@@ -6407,7 +6805,9 @@ rec {
             packageId = "percent-encoding 2.1.0";
           }
         ];
-
+        features = {
+          "serde" = [ "dep:serde" ];
+        };
       };
       "uuid" = rec {
         crateName = "uuid";
@@ -6429,12 +6829,18 @@ rec {
         ];
         features = {
           "default" = [ "std" ];
+          "getrandom" = [ "dep:getrandom" ];
           "guid" = [ "winapi" ];
+          "md5" = [ "dep:md5" ];
+          "serde" = [ "dep:serde" ];
+          "sha1" = [ "dep:sha1" ];
+          "slog" = [ "dep:slog" ];
           "stdweb" = [ "getrandom" "getrandom/js" ];
           "v3" = [ "md5" ];
           "v4" = [ "getrandom" ];
           "v5" = [ "sha1" ];
           "wasm-bindgen" = [ "getrandom" "getrandom/js" ];
+          "winapi" = [ "dep:winapi" ];
         };
         resolvedDefaultFeatures = [ "default" "getrandom" "std" "v4" ];
       };
@@ -6460,11 +6866,15 @@ rec {
           }
         ];
         features = {
+          "erased-serde1" = [ "dep:erased-serde1" ];
           "error" = [ "std" "sval1_lib/std" ];
           "serde" = [ "serde1" ];
           "serde1" = [ "serde1_lib" "sval1_lib/serde1" "sval1_lib/alloc" "erased-serde1/alloc" "serde1_fmt" ];
+          "serde1_fmt" = [ "dep:serde1_fmt" ];
+          "serde1_lib" = [ "dep:serde1_lib" ];
           "sval" = [ "sval1" ];
           "sval1" = [ "sval1_lib" ];
+          "sval1_lib" = [ "dep:sval1_lib" ];
           "test" = [ "std" ];
         };
       };
@@ -6513,6 +6923,7 @@ rec {
         ];
         features = {
           "eders" = [ "serde" ];
+          "serde" = [ "dep:serde" ];
         };
       };
       "version_check" = rec {
@@ -6564,8 +6975,11 @@ rec {
           "The Cranelift Project Developers"
         ];
         features = {
+          "compiler_builtins" = [ "dep:compiler_builtins" ];
+          "core" = [ "dep:core" ];
           "default" = [ "std" ];
           "rustc-dep-of-std" = [ "compiler_builtins" "core" "rustc-std-workspace-alloc" ];
+          "rustc-std-workspace-alloc" = [ "dep:rustc-std-workspace-alloc" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
@@ -6590,7 +7004,9 @@ rec {
         features = {
           "default" = [ "spans" "std" ];
           "enable-interning" = [ "std" ];
+          "serde" = [ "dep:serde" ];
           "serde-serialize" = [ "serde" "serde_json" "std" ];
+          "serde_json" = [ "dep:serde_json" ];
           "spans" = [ "wasm-bindgen-macro/spans" ];
           "strict-macro" = [ "wasm-bindgen-macro/strict-macro" ];
           "xxx_debug_only_print_generated_code" = [ "wasm-bindgen-macro/xxx_debug_only_print_generated_code" ];
@@ -6670,6 +7086,7 @@ rec {
           }
         ];
         features = {
+          "futures-core" = [ "dep:futures-core" ];
           "futures-core-03-stream" = [ "futures-core" ];
         };
       };
@@ -7305,7 +7722,10 @@ rec {
         ];
         features = {
           "actix-compat" = [ "actix-web" ];
+          "actix-web" = [ "dep:actix-web" ];
           "all" = [ "actix-compat" "warp-compat" ];
+          "hyper" = [ "dep:hyper" ];
+          "warp" = [ "dep:warp" ];
           "warp-compat" = [ "warp" "hyper" ];
         };
         resolvedDefaultFeatures = [ "default" ];
@@ -7338,6 +7758,10 @@ rec {
           {
             name = "bytes";
             packageId = "bytes";
+          }
+          {
+            name = "chacha20";
+            packageId = "chacha20";
           }
           {
             name = "chrono";
@@ -7389,6 +7813,10 @@ rec {
           {
             name = "serde_yaml";
             packageId = "serde_yaml";
+          }
+          {
+            name = "thiserror";
+            packageId = "thiserror";
           }
           {
             name = "tokio";
@@ -7575,6 +8003,8 @@ rec {
           }
         ];
         features = {
+          "chrono" = [ "dep:chrono" ];
+          "serde" = [ "dep:serde" ];
           "serialization-serde" = [ "transactions" "serde" ];
           "transactions" = [ "winapi/ktmw32" ];
         };
@@ -7607,6 +8037,7 @@ rec {
         ];
         features = {
           "attribute-order" = [ "indexmap" ];
+          "indexmap" = [ "dep:indexmap" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };

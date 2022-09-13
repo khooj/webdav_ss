@@ -9,15 +9,13 @@ let
 		};
 
 		filesystems = cfg.filesystems;
+		encryption = cfg.encryption;
 	});
 in
 with lib;
 {
 	options.services.webdav_ss = {
-		enable = mkOption {
-			type = types.bool;
-			default = false;
-		};
+		enable = mkEnableOption "webdav_ss";
 
 		package = mkOption {
 			type = types.package;
@@ -38,8 +36,14 @@ with lib;
 		};
 
 		prop_storage = mkOption {
-			type = with types; nullOr attrs;
+			type = with types; attrs;
 			description = "props storage backend";
+			default = null;
+		};
+
+		encryption = mkOption {
+			type = with types; attrs;
+			description = "encryption options";
 			default = null;
 		};
 
