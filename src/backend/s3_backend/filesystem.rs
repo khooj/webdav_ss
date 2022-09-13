@@ -12,7 +12,6 @@ use s3::{creds::Credentials, region::Region, Bucket};
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use std::io::{BufReader, Read};
 use tracing::{debug, error, instrument, span, Instrument, Level};
-use webdav_handler::memfs::MemFs;
 use webdav_handler::{
     davpath::DavPath,
     fs::{
@@ -23,7 +22,6 @@ use webdav_handler::{
 
 #[derive(Clone)]
 pub struct S3Backend {
-    memfs: Box<MemFs>,
     client: Bucket,
 }
 
@@ -111,7 +109,6 @@ impl S3Backend {
 
         Ok(Box::new(S3Backend {
             client: bucket,
-            memfs: MemFs::new(),
         }) as Box<dyn DavFileSystem>)
     }
 

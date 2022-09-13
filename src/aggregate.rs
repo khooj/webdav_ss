@@ -112,10 +112,9 @@ impl Aggregate {
     }
 }
 
+// TODO: ???
 #[derive(Debug, Clone)]
-struct AggregateMetaData {
-    path: NormalizedPath,
-}
+struct AggregateMetaData {}
 
 impl DavMetaData for AggregateMetaData {
     fn len(&self) -> u64 {
@@ -145,12 +144,7 @@ impl DavDirEntry for AggregateDirEntry {
     }
 
     fn metadata<'a>(&'a self) -> FsFuture<Box<dyn DavMetaData>> {
-        async move {
-            Ok(Box::new(AggregateMetaData {
-                path: self.path.clone(),
-            }) as Box<dyn DavMetaData>)
-        }
-        .boxed()
+        async move { Ok(Box::new(AggregateMetaData {}) as Box<dyn DavMetaData>) }.boxed()
     }
 }
 
@@ -228,7 +222,7 @@ impl DavFileSystem for Aggregate {
         async move {
             let p: NormalizedPath = path.clone().into();
             if p.is_root() {
-                return Ok(Box::new(AggregateMetaData { path: p }) as Box<dyn DavMetaData>);
+                return Ok(Box::new(AggregateMetaData {}) as Box<dyn DavMetaData>);
             }
             let (route, path) = self.find_route(&path)?;
             let result = route.metadata(&path).await;

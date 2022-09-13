@@ -1,6 +1,9 @@
 use crate::{
-    backend::prop_storages::{mem::Memory, yaml::Yaml, PropStorage},
-    configuration::PropsStorage,
+    backend::{
+        encryption::EncryptionWrapper,
+        prop_storages::{mem::Memory, yaml::Yaml, PropStorage},
+    },
+    configuration::{Encryption, PropsStorage},
 };
 
 use super::{
@@ -39,6 +42,15 @@ fn get_props_storage_by_conf(p: PropsStorage) -> Box<dyn PropStorage> {
     }
 }
 
+fn get_encrypted(enc: Encryption, fs: Box<dyn DavFileSystem>) -> Box<dyn DavFileSystem> {
+    if enc.enable {
+        Box::new(EncryptionWrapper::new(&enc.phrase.unwrap(), &enc.nonce.unwrap(), fs).unwrap())
+            as Box<dyn DavFileSystem>
+    } else {
+        fs
+    }
+}
+
 pub struct Application {
     addr: String,
     dav_server: DavHandler,
@@ -49,8 +61,12 @@ impl Application {
         let addr = format!("{}:{}", config.app.host, config.app.port);
         let mut fs = AggregateBuilder::new();
 
+        let enc = config.encryption.unwrap_or_default();
         for fss in config.filesystems {
-            fs = fs.add_route((&fss.mount_path, get_backend_by_type(fss.fs).await));
+            fs = fs.add_route((
+                &fss.mount_path,
+                get_encrypted(fss.encryption.unwrap_or(enc.clone()), get_backend_by_type(fss.fs).await),
+            ));
         }
 
         fs = fs.set_props_storage(get_props_storage_by_conf(

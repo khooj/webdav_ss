@@ -1,5 +1,5 @@
 use futures_util::{select, FutureExt};
-use std::env;
+use std::{convert::TryInto, env};
 use testcontainers::{
     clients::Cli,
     images::generic::{GenericImage, Stream, WaitFor},
@@ -9,8 +9,8 @@ use tokio::process::*;
 use webdav_ss::{
     application::Application,
     configuration::{
-        Application as ConfigApplication, Configuration, Filesystem, FilesystemType, PropsStorage,
-        S3Authentication,
+        Application as ConfigApplication, Configuration, Encryption, Filesystem, FilesystemType,
+        PropsStorage, S3Authentication,
     },
 };
 
@@ -53,11 +53,20 @@ async fn run_in_container(image: GenericImage, args: RunArgs, fs: FilesystemType
             host: "127.0.0.1".into(),
             port: 8080,
         },
+        encryption: Some(Encryption {
+            enable: true,
+            nonce: Some([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+            phrase: Some([
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                24, 25, 26, 27, 28, 29, 30, 31, 32,
+            ]),
+        }),
         filesystems: vec![
             fs,
             FilesystemType {
                 mount_path: "/fs2".into(),
                 fs: Filesystem::Mem,
+                encryption: None,
             },
         ],
         prop_storage: Some(PropsStorage::Yaml {

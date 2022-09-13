@@ -101,6 +101,14 @@ pub struct FilesystemType {
     #[serde(flatten)]
     pub fs: Filesystem,
     pub mount_path: String,
+    pub encryption: Option<Encryption>,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct Encryption {
+    pub enable: bool,
+    pub nonce: Option<[u8; 12]>,
+    pub phrase: Option<[u8; 32]>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -115,6 +123,7 @@ pub struct Configuration {
     pub app: Application,
     pub filesystems: Vec<FilesystemType>,
     pub prop_storage: Option<PropsStorage>,
+    pub encryption: Option<Encryption>,
 }
 
 impl Configuration {
