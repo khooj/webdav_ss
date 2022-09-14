@@ -12,24 +12,23 @@
       system = "x86_64-linux";
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [
-          rust-overlay.overlays.default
-          (self: super: {
-            inherit (super.rust-bin.stable.${rust-version}) cargo rustc rustfmt rust-std clippy;
-            # rustc = super.rust-bin.stable.${rust-version}.default;
-          })
-        ];
+        overlays = [ rust-overlay.overlays.default ];
       };
+      litmus = pkgs.callPackage ./litmus.nix {};
+      webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
 
-      moduleTests = import ./tests.nix {
-        makeTest = import "${pkgs.path}/nixos/tests/make-test-python.nix";
-        inherit pkgs;
-      };
+      moduleTests = import
+        ./tests.nix
+        {
+          makeTest = import "${pkgs.path}/nixos/tests/make-test-python.nix";
+          inherit pkgs;
+        };
     in
     {
       packages.${system} = {
-        # tests = moduleTests;
-        webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
+        tests = moduleTests.driverInteractive;
+        # TODO: fix different rust dependencies in module and here
+        inherit webdav_ss;
       };
 
       checks.${system}.nixosTests = moduleTests.test;

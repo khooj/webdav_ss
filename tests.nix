@@ -1,9 +1,11 @@
 { makeTest, pkgs }:
-makeTest ({
+let 
+  litmus = pkgs.callPackage ./litmus.nix {};
+in makeTest ({
   name = "check";
   nodes.machine1 = { ... }: {
     imports = [ ./module.nix ];
-    environment.systemPackages = [ pkgs.litmus ];
+    environment.systemPackages = [ litmus ];
     virtualisation = {
       diskSize = 2048;
       memorySize = 1024;

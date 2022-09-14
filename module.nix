@@ -1,7 +1,6 @@
 { config, pkgs, ... }:
 let
   cfg = config.services.webdav_ss;
-  # TODO: somehow fixate rust version from oxalica's overlay?
   webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
   cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
     app = {
