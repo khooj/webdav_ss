@@ -1,7 +1,8 @@
+webdav_ss:
 { config, pkgs, ... }:
 let
   cfg = config.services.webdav_ss;
-  webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
+  # webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
   cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
     app = {
       inherit (cfg) host port prop_storage;

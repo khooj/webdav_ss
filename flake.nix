@@ -16,12 +16,13 @@
       };
       litmus = pkgs.callPackage ./litmus.nix {};
       webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
+      module = import ./module.nix webdav_ss;
 
       moduleTests = import
         ./tests.nix
         {
           makeTest = import "${pkgs.path}/nixos/tests/make-test-python.nix";
-          inherit pkgs;
+          inherit pkgs module;
         };
     in
     {
@@ -33,7 +34,7 @@
 
       checks.${system}.nixosTests = moduleTests.test;
 
-      nixosModules.webdav_ss = import ./module.nix;
+      nixosModules.webdav_ss = import ./module.nix webdav_ss;
 
       devShells.x86_64-linux.default = pkgs.mkShell
         {

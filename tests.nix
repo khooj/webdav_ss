@@ -1,10 +1,10 @@
-{ makeTest, pkgs }:
+{ makeTest, pkgs, module }:
 let 
   litmus = pkgs.callPackage ./litmus.nix {};
 in makeTest ({
   name = "check";
   nodes.machine1 = { ... }: {
-    imports = [ ./module.nix ];
+    imports = [ module ];
     environment.systemPackages = [ litmus ];
     virtualisation = {
       diskSize = 2048;
