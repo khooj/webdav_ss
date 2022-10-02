@@ -23,7 +23,7 @@ use webdav_handler::{
 
 #[derive(Error, Debug)]
 pub enum S3BackendError {
-    #[error("s3 client error: {0}")]
+    #[error("s3 client error: {0:?}")]
     S3(#[from] S3Error),
     #[error("fs error passthru")]
     FsError(#[from] FsError),
