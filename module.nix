@@ -52,7 +52,7 @@ with pkgs.lib;
     };
 
     logLevel = mkOption {
-      type = types.enum [ "error" "warn" "info" "debug" ];
+      type = types.str;
       description = "Log level";
       default = "error";
     };
