@@ -58,6 +58,7 @@
             crate2nix
             nixos-shell
             vscodium
+            s3cmd
           ];
           nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
           shellHook = ''

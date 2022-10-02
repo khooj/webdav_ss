@@ -237,22 +237,24 @@ impl S3Backend {
                 }
 
                 for c in e.contents {
+                    let k = c.key.clone();
                     let prefix: NormalizedPath = c.key.into();
                     if prefix.ends_with(".dir") {
                         continue;
                     }
-                    let meta = fs.metadata_info(prefix.clone().into()).await;
-                    if let Err(_) = meta {
-                        debug!(msg = "error metadata for entry", prefix = ?prefix);
-                        continue;
-                    }
+                    let mm = S3MetaData::extract_from_tags(
+                        c.size,
+                        k,
+                        false,
+                        Some(c.e_tag),
+                        Some(c.last_modified),
+                    );
                     let prefix = prefix.strip_prefix(&path);
-                    debug!(msg = "generating entry for", prefix = ?prefix);
-                    let entry = Box::new(S3DirEntry {
-                        metadata: meta.unwrap(),
+                    let mm = Box::new(S3DirEntry {
+                        metadata: Box::new(mm) as Box<dyn DavMetaData>,
                         name: prefix.into(),
                     }) as Box<dyn DavDirEntry>;
-                    yield entry;
+                    yield mm;
                 }
             }
         };
