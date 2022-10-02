@@ -7,7 +7,7 @@ let
     app = {
       inherit (cfg) host port ;
     };
-    inherit (cfg) prop_storage filesystems encryption;
+    inherit (cfg) prop_storage filesystems encryption compression;
   });
 in
 with pkgs.lib;
@@ -31,6 +31,12 @@ with pkgs.lib;
       type = types.int;
       description = "Listen port";
       default = 5656;
+    };
+
+    compression = mkOption {
+      type = with types; nullOr bool;
+      description = "enable compression";
+      default = false;
     };
 
     prop_storage = mkOption {

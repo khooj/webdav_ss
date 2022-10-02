@@ -1,7 +1,7 @@
 app:
   host: "0.0.0.0"
   port: 5555
-compression: true
+compression: false
 prop_storage:
   type: yaml
   path: test.yml

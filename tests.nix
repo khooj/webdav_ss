@@ -16,6 +16,7 @@ in makeTest ({
       host = "0.0.0.0";
       port = 5000;
       logLevel = "info";
+      compression = false;
       prop_storage = {
         type = "yaml";
         path = "/tmp/twodir/yaml_storage.yml";
@@ -78,6 +79,7 @@ in makeTest ({
     machine1.wait_for_open_port(9000)
     machine1.wait_for_unit("webdav_ss.service")
     machine1.wait_for_open_port(5000)
+    machine1.wait_until_succeeds("sleep 5")
     machine1.succeed("litmus http://localhost:5000/fs1")
     machine1.succeed("litmus http://localhost:5000/fs2")
     machine1.succeed("litmus http://localhost:5000/fs3")
