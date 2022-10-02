@@ -44,6 +44,7 @@
             rustfmt
             clippy
             rust-std
+            rust-analyzer
 
             litmus
             pkgconfig

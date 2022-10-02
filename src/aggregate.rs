@@ -12,8 +12,8 @@ use tracing::{debug, instrument, span, Instrument, Level};
 use webdav_handler::{
     davpath::DavPath,
     fs::{
-        DavDirEntry, DavFile, DavFileSystem, DavMetaData, FsError, FsFuture, FsResult, FsStream,
-        OpenOptions, ReadDirMeta,
+        DavDirEntry, DavFile, DavFileSystem, DavMetaData, DavProp, FsError, FsFuture, FsResult,
+        FsStream, OpenOptions, ReadDirMeta,
     },
 };
 
@@ -152,6 +152,21 @@ impl DavFileSystem for Aggregate {
     fn open<'a>(&'a self, path: &'a DavPath, options: OpenOptions) -> FsFuture<Box<dyn DavFile>> {
         let span = span!(Level::INFO, "Aggregate::open");
         async move {
+            // TODO: need to refactor code because of possible file existence errors
+            // self.patch_props(
+            //     &path,
+            //     vec![(
+            //         true,
+            //         DavProp {
+            //             name: "exist".to_string(),
+            //             namespace: None,
+            //             prefix: None,
+            //             xml: None,
+            //         },
+            //     )],
+            // )
+            // .await?;
+
             let (route, path) = self.find_route(&path)?;
             let result = route.open(&path, options).await;
             Ok(result?)

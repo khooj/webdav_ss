@@ -65,6 +65,10 @@ impl PropStorage for Memory {
         async move {
             let g = self.data.lock().unwrap();
             let b = g.borrow();
+            if path.is_collection() {
+                return true;
+            }
+
             for k in b.keys() {
                 if k.starts_with(path.as_ref()) {
                     debug!(contains = true, path = %path);
@@ -83,7 +87,10 @@ impl PropStorage for Memory {
         path: &'a NormalizedPath,
         (set, prop): (bool, DavProp),
     ) -> PropFuture<PropResult<(StatusCode, DavProp)>> {
-        async move { self.add_prop(path, (set, prop)) }.boxed()
+        let span = span!(Level::INFO, "Memory::patch_prop");
+        async move { self.add_prop(path, (set, prop)) }
+            .instrument(span)
+            .boxed()
     }
 
     fn get_prop<'a>(
@@ -117,7 +124,9 @@ impl PropStorage for Memory {
             let data = self.data.lock().unwrap();
             let mut r = vec![];
             let b = data.borrow();
+            debug!(path = %path);
             for k in b.keys() {
+                // debug!(key = %k);
                 if k.starts_with(path.as_ref()) {
                     let mut v = b.get(k).unwrap().clone();
                     if !do_content {

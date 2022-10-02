@@ -70,7 +70,7 @@ impl Application {
         }
 
         fs = fs.set_props_storage(get_props_storage_by_conf(
-            config.prop_storage.unwrap_or(PropsStorage::Mem),
+            config.prop_storage.expect("cant determine prop_storage type")
         ));
 
         let dav_server = DavHandler::builder()

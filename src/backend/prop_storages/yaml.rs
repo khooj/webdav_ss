@@ -2,6 +2,7 @@ use futures_util::FutureExt;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf};
 use webdav_handler::fs::DavProp;
+use tracing::{debug, instrument, span, Instrument, Level};
 
 use super::{mem::Memory, PropStorage};
 
@@ -94,10 +95,12 @@ impl PropStorage for Yaml {
         &'a self,
         path: &'a crate::backend::normalized_path::NormalizedPath,
     ) -> super::PropFuture<bool> {
+        let span = span!(Level::DEBUG, "Yaml::have_props");
         async move {
             let r = self.mem.have_props(path).await;
             r
         }
+        .instrument(span)
         .boxed()
     }
 

@@ -5,11 +5,9 @@ let
   # webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
   cfgFile = pkgs.writeText "config.yml" (builtins.toJSON {
     app = {
-      inherit (cfg) host port prop_storage;
+      inherit (cfg) host port ;
     };
-
-    filesystems = cfg.filesystems;
-    encryption = cfg.encryption;
+    inherit (cfg) prop_storage filesystems encryption;
   });
 in
 with pkgs.lib;
