@@ -8,9 +8,10 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use futures_util::{FutureExt, StreamExt};
-use s3::{creds::Credentials, region::Region, Bucket};
+use s3::{creds::Credentials, region::Region, Bucket, S3Error};
 use s3::{serde_types::HeadObjectResult, BucketConfiguration};
 use std::io::{BufReader, Read};
+use thiserror::Error;
 use tracing::{debug, error, instrument, span, Instrument, Level};
 use webdav_handler::{
     davpath::DavPath,
@@ -19,6 +20,35 @@ use webdav_handler::{
         ReadDirMeta,
     },
 };
+
+#[derive(Error, Debug)]
+pub enum S3BackendError {
+    #[error("s3 client error: {0}")]
+    S3(#[from] S3Error),
+    #[error("fs error passthru")]
+    FsError(#[from] FsError),
+    #[error("not found resource")]
+    NotFound,
+    #[error("forbidden resource")]
+    Forbidden,
+    #[error("unsuccessful code")]
+    Code(u16),
+    #[error("exist")]
+    Exist,
+}
+
+impl From<S3BackendError> for FsError {
+    fn from(e: S3BackendError) -> Self {
+        match e {
+            S3BackendError::S3(_) => FsError::GeneralFailure,
+            S3BackendError::FsError(e) => e,
+            S3BackendError::NotFound => FsError::NotFound,
+            S3BackendError::Forbidden => FsError::Forbidden,
+            S3BackendError::Code(_) => FsError::GeneralFailure,
+            S3BackendError::Exist => FsError::Exists,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct S3Backend {
@@ -107,9 +137,7 @@ impl S3Backend {
             }
         }
 
-        Ok(Box::new(S3Backend {
-            client: bucket,
-        }) as Box<dyn DavFileSystem>)
+        Ok(Box::new(S3Backend { client: bucket }) as Box<dyn DavFileSystem>)
     }
 
     async fn check_bucket(bucket: &Bucket) -> Result<()> {
@@ -119,7 +147,7 @@ impl S3Backend {
     }
 
     #[instrument(level = "debug", skip(self), err)]
-    async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<S3MetaData>, FsError> {
+    async fn metadata_info(&self, path: NormalizedPath) -> Result<Box<S3MetaData>, S3BackendError> {
         // root dir always exist
         if path.starts_with("/") && path.ends_with("/") {
             return Ok(Box::new(S3MetaData::extract_from_tags(
@@ -135,7 +163,7 @@ impl S3Backend {
         let mut head: Option<(HeadObjectResult, NormalizedPath)> = None;
         // check if it dir or file
         for prefix in [path.join_file(".dir"), path.clone()] {
-            let (resp, code) = self.client.head_object(prefix.clone()).await.unwrap();
+            let (resp, code) = self.client.head_object(prefix.clone()).await?;
             if code != 200 {
                 continue;
             }
@@ -148,7 +176,7 @@ impl S3Backend {
 
         if head.is_none() {
             debug!(msg = "not found", path = ?path);
-            return Err(FsError::NotFound);
+            return Err(S3BackendError::NotFound);
         }
 
         let head = head.unwrap();
@@ -168,20 +196,13 @@ impl S3Backend {
     async fn read_dir_impl(
         &self,
         path: NormalizedPath,
-    ) -> Result<FsStream<Box<dyn DavDirEntry>>, FsError> {
+    ) -> Result<FsStream<Box<dyn DavDirEntry>>, S3BackendError> {
         use async_stream::stream;
 
-        let meta = self.metadata_info(path.clone()).await;
-        match meta {
-            Err(e) => {
-                return Err(e);
-            }
-            Ok(k) => {
-                if k.is_file() {
-                    return Err(FsError::Forbidden);
-                }
-            }
-        };
+        let meta = self.metadata_info(path.clone()).await?;
+        if meta.is_file() {
+            return Err(S3BackendError::Forbidden);
+        }
 
         debug!(path_to_prefix = %path);
         let prefix = if path.ends_with("/") && path.len() == 1 {
@@ -189,7 +210,11 @@ impl S3Backend {
         } else {
             path.clone().into()
         };
-        let objects = self.client.list(prefix, Some("/".into())).await.unwrap();
+        let objects = self
+            .client
+            .list(prefix, Some("/".into()))
+            .await
+            .map_err(S3BackendError::from)?;
 
         debug!(msg = "received entries", entries = ?objects);
         let fs = self.clone();
@@ -236,7 +261,11 @@ impl S3Backend {
     }
 
     #[instrument(level = "debug", err, skip(self))]
-    async fn remove_file_impl(&self, path: NormalizedPath, dir_check: bool) -> Result<(), FsError> {
+    async fn remove_file_impl(
+        &self,
+        path: NormalizedPath,
+        dir_check: bool,
+    ) -> Result<(), S3BackendError> {
         debug!(path = ?path, dir_check = dir_check);
         let meta = self.metadata_info(path.clone()).await;
         match meta {
@@ -245,22 +274,26 @@ impl S3Backend {
             }
             Ok(k) => {
                 if k.is_dir() && dir_check {
-                    return Err(FsError::Forbidden);
+                    return Err(S3BackendError::Forbidden);
                 }
             }
         };
-        let (_, code) = self.client.delete_object(path.as_ref()).await.unwrap();
+        let (_, code) = self
+            .client
+            .delete_object(path.as_ref())
+            .await
+            .map_err(S3BackendError::from)?;
 
         debug!(code = code);
         if code != 204 {
-            return Err(FsError::GeneralFailure);
+            return Err(S3BackendError::Code(code));
         }
 
         Ok(())
     }
 
     #[instrument(level = "debug", err, skip(self))]
-    async fn remove_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
+    async fn remove_dir_impl(&self, path: NormalizedPath) -> Result<(), S3BackendError> {
         let meta = self.metadata_info(path.clone()).await;
         match meta {
             Err(e) => {
@@ -268,7 +301,7 @@ impl S3Backend {
             }
             Ok(k) => {
                 if k.is_file() {
-                    return Err(FsError::Forbidden);
+                    return Err(S3BackendError::Forbidden);
                 }
             }
         };
@@ -280,12 +313,12 @@ impl S3Backend {
     }
 
     #[instrument(level = "debug", err, skip(self))]
-    async fn create_dir_impl(&self, path: NormalizedPath) -> Result<(), FsError> {
+    async fn create_dir_impl(&self, path: NormalizedPath) -> Result<(), S3BackendError> {
         let meta = self.metadata_info(path.clone()).await;
         if let Ok(m) = meta {
             if m.is_dir() {
                 debug!(msg = "dir already exist", path = ?path);
-                return Err(FsError::Exists);
+                return Err(S3BackendError::Exist);
             }
         }
 
@@ -293,7 +326,7 @@ impl S3Backend {
             let p = path.strip_suffix("/").unwrap();
             let meta = self.metadata_info(p.clone().into()).await;
             if let Ok(_) = meta {
-                return Err(FsError::Forbidden);
+                return Err(S3BackendError::Forbidden);
             }
         }
 
@@ -303,11 +336,11 @@ impl S3Backend {
                 .client
                 .put_object(prefix_dir.clone(), &[])
                 .await
-                .unwrap();
+                .map_err(S3BackendError::from)?;
 
             debug!(msg = "creating stub dir file", resp = ?resp, code = code, prefix = ?path);
             if code != 200 {
-                return Err(FsError::GeneralFailure);
+                return Err(S3BackendError::Code(code));
             }
             return Ok(());
         }
@@ -323,7 +356,7 @@ impl S3Backend {
             Ok(k) => {
                 if k.is_file() {
                     debug!(msg = "tried to create subfolder in file", parent = ?parent);
-                    return Err(FsError::Forbidden);
+                    return Err(S3BackendError::Forbidden);
                 }
             }
         };
@@ -332,11 +365,11 @@ impl S3Backend {
             .client
             .put_object(prefix_dir.clone(), &[])
             .await
-            .unwrap();
+            .map_err(S3BackendError::from)?;
 
         debug!(msg = "creating stub dir file", resp = ?resp, code = code, prefix = ?prefix_dir);
         if code != 200 {
-            return Err(FsError::GeneralFailure);
+            return Err(S3BackendError::Code(code));
         }
 
         Ok(())
@@ -347,7 +380,7 @@ impl S3Backend {
         &self,
         mut from: NormalizedPath,
         mut to: NormalizedPath,
-    ) -> Result<(), FsError> {
+    ) -> Result<(), S3BackendError> {
         let to_meta = self.metadata_info(to.clone()).await;
 
         if let Err(_) = to_meta {
@@ -365,14 +398,10 @@ impl S3Backend {
             self.create_dir_impl(to.parent()).await?;
         }
 
-        let (_, code) = self
-            .client
-            .copy_object(from.into(), to.into())
-            .await
-            .unwrap();
+        let (_, code) = self.client.copy_object(from.into(), to.into()).await?;
 
         if code != 200 {
-            return Err(FsError::GeneralFailure);
+            return Err(S3BackendError::Code(code));
         }
 
         Ok(())
@@ -383,7 +412,7 @@ impl S3Backend {
         &self,
         from: NormalizedPath,
         mut to: NormalizedPath,
-    ) -> Result<(), FsError> {
+    ) -> Result<(), S3BackendError> {
         if !from.is_collection() && to.is_collection() {
             // TODO: remove files recursive
             if let Ok(_) = self.metadata_info(to.clone()).await {
@@ -421,7 +450,7 @@ impl S3Backend {
             for obj in &objects {
                 let suffix: NormalizedPath =
                     String::from_utf8_lossy(&obj.name()).to_string().into();
-                if obj.is_dir().await? {
+                if obj.is_dir().await.map_err(S3BackendError::from)? {
                     dirs.push(path.join_dir(&suffix));
                     dirs_to_create.push(to.join_dir(&suffix));
                 } else {
@@ -463,12 +492,12 @@ impl DavFileSystem for S3Backend {
                         return Err(FsError::Exists);
                     }
                 }
-                Err(FsError::NotFound) => {
+                Err(S3BackendError::NotFound) => {
                     if !options.create {
                         return Err(FsError::NotFound);
                     }
                 }
-                Err(e) => return Err(e),
+                Err(e) => return Err(e.into()),
             }
 
             let mut buf = vec![];
@@ -476,14 +505,14 @@ impl DavFileSystem for S3Backend {
                 .client
                 .head_object(path.as_ref())
                 .await
-                .map_err(|_| FsError::GeneralFailure)?;
+                .map_err(S3BackendError::from)?;
 
             if code == 200 {
                 let (obj, code) = self
                     .client
                     .get_object(path.as_ref())
                     .await
-                    .map_err(|_| FsError::GeneralFailure)?;
+                    .map_err(S3BackendError::from)?;
 
                 if code != 200 {
                     error!(msg = "cant get object", code = code);
@@ -556,7 +585,7 @@ impl DavFileSystem for S3Backend {
         let span = span!(Level::INFO, "S3Backend::remove_file");
         async move {
             let path: NormalizedPath = path.into();
-            Ok(self.remove_file_impl(path, true).await.unwrap())
+            Ok(self.remove_file_impl(path, true).await?)
         }
         .instrument(span)
         .boxed()

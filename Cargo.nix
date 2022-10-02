@@ -7855,6 +7855,10 @@ rec {
         ];
         devDependencies = [
           {
+            name = "lazy_static";
+            packageId = "lazy_static";
+          }
+          {
             name = "testcontainers";
             packageId = "testcontainers";
           }

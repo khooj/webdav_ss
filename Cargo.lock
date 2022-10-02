@@ -2533,6 +2533,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "hyper",
+ "lazy_static",
  "percent-encoding 2.1.0",
  "rust-s3",
  "serde",

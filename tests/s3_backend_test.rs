@@ -14,6 +14,12 @@ use webdav_ss::{
     },
 };
 
+lazy_static::lazy_static! {
+    static ref INIT_LOG: () = {
+        webdav_ss::configuration::setup_tracing();
+    };
+}
+
 struct ContainerDrop<'d, D: Docker, I: Image> {
     container: Container<'d, D, I>,
 }
@@ -107,12 +113,12 @@ async fn run_in_container(image: GenericImage, args: RunArgs, fs: FilesystemType
 #[cfg(feature = "integration")]
 async fn s3_backend_minio() {
     // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
-    webdav_ss::configuration::setup_tracing();
+    let _ = INIT_LOG;
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));
-    let image = GenericImage::new("minio/minio")
+    let image = GenericImage::new("minio/minio:RELEASE.2022-09-25T15-44-53Z")
         .with_wait_for(WaitFor::LogMessage {
-            message: "Detected default credentials".into(),
+            message: "Documentation: ".into(),
             stream: Stream::StdOut,
         })
         .with_args(vec!["server".into(), "/data".into()])
@@ -123,6 +129,7 @@ async fn s3_backend_minio() {
 
     let fs = FilesystemType {
         mount_path: "/fs3".into(),
+        encryption: None,
         fs: Filesystem::S3 {
             region: "us-east-1".into(),
             bucket: "test".into(),
@@ -143,18 +150,19 @@ async fn s3_backend_minio() {
 #[cfg(feature = "integration")]
 async fn s3_backend_minio_pathstyle() {
     // env::set_var("RUST_LOG", "webdav_ss=debug,webdav_handler=debug");
-    webdav_ss::configuration::setup_tracing();
+    let _ = INIT_LOG;
 
     let args = RunArgs::default().with_mapped_port((9000, 9000));
-    let image = GenericImage::new("minio/minio")
+    let image = GenericImage::new("minio/minio:RELEASE.2022-09-25T15-44-53Z")
         .with_wait_for(WaitFor::LogMessage {
-            message: "Detected default credentials".into(),
+            message: "Documentation: ".into(),
             stream: Stream::StdOut,
         })
         .with_args(vec!["server".into(), "/data".into()]);
 
     let fs = FilesystemType {
         mount_path: "/fs3".into(),
+        encryption: None,
         fs: Filesystem::S3 {
             region: "us-east-1".into(),
             bucket: "test".into(),
