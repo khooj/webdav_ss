@@ -124,6 +124,7 @@ pub struct Configuration {
     pub filesystems: Vec<FilesystemType>,
     pub prop_storage: Option<PropsStorage>,
     pub encryption: Option<Encryption>,
+    pub compression: Option<bool>,
 }
 
 impl Configuration {

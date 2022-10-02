@@ -11,13 +11,11 @@ use super::{
     backend::s3_backend::S3Backend,
     configuration::{Configuration, Filesystem},
 };
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Server,
-};
 use std::{convert::Infallible, net::SocketAddr, path::PathBuf, str::FromStr};
 use tracing::{error, instrument};
+use warp::Filter;
 use webdav_handler::memls::MemLs;
+use webdav_handler::warp::dav_handler;
 use webdav_handler::DavHandler;
 use webdav_handler::{fs::DavFileSystem, localfs::LocalFs, memfs::MemFs};
 
@@ -54,6 +52,7 @@ fn get_encrypted(enc: Encryption, fs: Box<dyn DavFileSystem>) -> Box<dyn DavFile
 pub struct Application {
     addr: String,
     dav_server: DavHandler,
+    compression: bool,
 }
 
 impl Application {
@@ -65,12 +64,17 @@ impl Application {
         for fss in config.filesystems {
             fs = fs.add_route((
                 &fss.mount_path,
-                get_encrypted(fss.encryption.unwrap_or(enc.clone()), get_backend_by_type(fss.fs).await),
+                get_encrypted(
+                    fss.encryption.unwrap_or(enc.clone()),
+                    get_backend_by_type(fss.fs).await,
+                ),
             ));
         }
 
         fs = fs.set_props_storage(get_props_storage_by_conf(
-            config.prop_storage.expect("cant determine prop_storage type")
+            config
+                .prop_storage
+                .expect("cant determine prop_storage type"),
         ));
 
         let dav_server = DavHandler::builder()
@@ -78,27 +82,25 @@ impl Application {
             .locksystem(MemLs::new())
             .build_handler();
 
-        Application { addr, dav_server }
+        Application {
+            addr,
+            dav_server,
+            compression: config.compression.unwrap_or(false),
+        }
     }
 
     #[instrument(skip(self))]
     pub async fn run(self) {
         let dav_server = self.dav_server;
-
-        let make_svc = make_service_fn(move |_conn| {
-            let dav_server = dav_server.clone();
-            async move {
-                let func = move |req| {
-                    let dav_server = dav_server.clone();
-                    async move { Ok::<_, Infallible>(dav_server.handle(req).await) }
-                };
-                Ok::<_, Infallible>(service_fn(func))
-            }
-        });
         let addr = SocketAddr::from_str(&self.addr).expect("can't parse host and port");
-        let srv = Server::bind(&addr).serve(make_svc);
-        if let Err(e) = srv.await {
-            error!("error running server: {}", e);
+        let f = dav_handler(dav_server);
+
+        if self.compression {
+            warp::serve(f.with(warp::filters::compression::gzip()))
+                .run(addr)
+                .await
+        } else {
+            warp::serve(f).run(addr).await
         }
     }
 }

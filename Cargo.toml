@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-webdav-handler = "0.2.0"
+webdav-handler = { version = "0.2.0", features = [ "warp-compat" ] }
 hyper = { version = "0.14", default-features = false, features = ["server", "tcp", "http1", "stream", "client"] }
 tokio = { version = "1", features = ["full"] }
 futures-util = { version = "0.3", default-features = false }
@@ -31,6 +31,7 @@ serde_yaml = "0.8"
 chrono = "0.4"
 toml = "0.5.8"
 chacha20 = "0.9.0"
+warp = { version = "0.3", features = [ "compression-gzip" ] }
 
 [dev-dependencies]
 testcontainers = "0.12"

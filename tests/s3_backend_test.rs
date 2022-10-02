@@ -59,6 +59,7 @@ async fn run_in_container(image: GenericImage, args: RunArgs, fs: FilesystemType
             host: "127.0.0.1".into(),
             port: 8080,
         },
+        compression: None,
         encryption: Some(Encryption {
             enable: true,
             nonce: Some([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
