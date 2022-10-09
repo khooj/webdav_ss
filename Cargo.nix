@@ -2767,6 +2767,20 @@ rec {
         ];
 
       };
+      "heck" = rec {
+        crateName = "heck";
+        version = "0.4.0";
+        edition = "2018";
+        sha256 = "1ygphsnfwl2xpa211vbqkz1db6ri1kvkg8p8sqybi37wclg7fh15";
+        authors = [
+          "Without Boats <woboats@gmail.com>"
+        ];
+        features = {
+          "unicode" = [ "unicode-segmentation" ];
+          "unicode-segmentation" = [ "dep:unicode-segmentation" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "hermit-abi" = rec {
         crateName = "hermit-abi";
         version = "0.1.19";
@@ -5205,8 +5219,8 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/khooj/rust-s3";
-          rev = "db556125607842b223e68750854f0b0d39d9941f";
-          sha256 = "09sfp4dn0zwaqzavmg0wyavy2r95r1d58v8zd02lsv4fpg99qdkk";
+          rev = "22ae284636ab4b61ed5afe19e3c11e37ddb43c29";
+          sha256 = "0hnwna70b71gjy7a0mhnfli8zsfmjxza4whsv95mq4vcjialrd58";
         };
         libName = "s3";
         authors = [
@@ -5308,6 +5322,14 @@ rec {
           {
             name = "uuid";
             packageId = "uuid";
+          }
+          {
+            name = "yaserde";
+            packageId = "yaserde";
+          }
+          {
+            name = "yaserde_derive";
+            packageId = "yaserde_derive";
           }
         ];
         devDependencies = [
@@ -9707,6 +9729,66 @@ rec {
           {
             name = "linked-hash-map";
             packageId = "linked-hash-map";
+          }
+        ];
+
+      };
+      "yaserde" = rec {
+        crateName = "yaserde";
+        version = "0.8.0";
+        edition = "2018";
+        sha256 = "10h5z8ys79bv1gasyjgy7pdri8pwssmpwgfnm9m8c2x5aksjmxab";
+        authors = [
+          "Marc-Antoine Arnaud <arnaud.marcantoine@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "xml-rs";
+            packageId = "xml-rs";
+          }
+        ];
+        features = {
+          "yaserde_derive" = [ "dep:yaserde_derive" ];
+        };
+      };
+      "yaserde_derive" = rec {
+        crateName = "yaserde_derive";
+        version = "0.8.0";
+        edition = "2018";
+        sha256 = "07r2zidivmg02a21f1nx01dqipfvpl5d6cv8na087fzffrfbvf3s";
+        procMacro = true;
+        authors = [
+          "Marc-Antoine Arnaud <arnaud.marcantoine@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "heck";
+            packageId = "heck";
+          }
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn";
+            features = [ "visit" "extra-traits" ];
+          }
+          {
+            name = "xml-rs";
+            packageId = "xml-rs";
           }
         ];
 

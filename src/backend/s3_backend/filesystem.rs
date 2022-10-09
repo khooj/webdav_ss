@@ -220,20 +220,18 @@ impl S3Backend {
         let fs = self.clone();
         let s = stream! {
             for e in objects {
-                if let Some(v) = e.common_prefixes {
-                    for d in v {
-                        let m = fs.metadata_info(d.prefix.clone().into()).await;
-                        if let Err(_) = m {
-                            continue;
-                        }
-                        let p: NormalizedPath = d.prefix.clone().into();
-                        let p = p.strip_prefix(&path);
-                        debug!(msg = "generating entry for dir", prefix = ?p);
-                        yield Box::new(S3DirEntry {
-                            metadata: m.unwrap(),
-                            name: p.into(),
-                        }) as Box<dyn DavDirEntry>;
+                for d in e.common_prefixes {
+                    let m = fs.metadata_info(d.prefix.clone().into()).await;
+                    if let Err(_) = m {
+                        continue;
                     }
+                    let p: NormalizedPath = d.prefix.clone().into();
+                    let p = p.strip_prefix(&path);
+                    debug!(msg = "generating entry for dir", prefix = ?p);
+                    yield Box::new(S3DirEntry {
+                        metadata: m.unwrap(),
+                        name: p.into(),
+                    }) as Box<dyn DavDirEntry>;
                 }
 
                 for c in e.contents {

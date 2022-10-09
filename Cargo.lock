@@ -942,6 +942,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1773,7 +1779,7 @@ dependencies = [
 [[package]]
 name = "rust-s3"
 version = "0.26.3"
-source = "git+https://github.com/khooj/rust-s3?rev=db556125607842b223e68750854f0b0d39d9941f#db556125607842b223e68750854f0b0d39d9941f"
+source = "git+https://github.com/khooj/rust-s3?rev=22ae284636ab4b61ed5afe19e3c11e37ddb43c29#22ae284636ab4b61ed5afe19e3c11e37ddb43c29"
 dependencies = [
  "async-std",
  "aws-creds",
@@ -1798,6 +1804,8 @@ dependencies = [
  "tokio-stream",
  "url",
  "uuid",
+ "yaserde",
+ "yaserde_derive",
 ]
 
 [[package]]
@@ -2920,4 +2928,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
 dependencies = [
  "linked-hash-map",
+]
+
+[[package]]
+name = "yaserde"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bf52af554a50b866aaad63d7eabd6fca298db3dfe49afd50b7ba5a33dfa0582"
+dependencies = [
+ "log",
+ "xml-rs",
+]
+
+[[package]]
+name = "yaserde_derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ab8bd5c76eebb8380b26833d30abddbdd885b00dd06178412e0d51d5bfc221f"
+dependencies = [
+ "heck",
+ "log",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "xml-rs",
 ]
