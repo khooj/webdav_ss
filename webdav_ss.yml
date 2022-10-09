@@ -3,10 +3,9 @@ app:
   port: 5555
 compression: false
 prop_storage:
-  type: yaml
-  path: test.yml
+  type: mem
 encryption:
-  enable: true
+  enable: false
   nonce: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
   phrase: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
 
@@ -22,16 +21,6 @@ filesystems:
       type: values
       access_key_value: minioadmin
       secret_key_value: minioadmin
-  - mount_path: /linode
-    type: s3
-    region: eu-central-1
-    url: https://eu-central-1.linodeobjects.com
-    bucket: khooj-webdav-test
-    path_style: false
-    ensure_bucket: false
-    auth:
-      type: file
-      path: linode-access
   - mount_path: /fs
     type: fs
     path: /tmp/webdavfs
