@@ -1,10 +1,11 @@
-#[derive(Deserialize, Debug)]
+#[derive(YaDeserialize, Debug)]
+#[yaserde(namespace = "http://s3.amazonaws.com/doc/2006-03-01/")]
 pub struct InitiateMultipartUploadResponse {
-    #[serde(rename = "Bucket")]
+    #[yaserde(rename = "Bucket")]
     bucket: String,
-    #[serde(rename = "Key")]
+    #[yaserde(rename = "Key")]
     pub key: String,
-    #[serde(rename = "UploadId")]
+    #[yaserde(rename = "UploadId")]
     pub upload_id: String,
 }
 
@@ -89,7 +90,7 @@ pub struct KVPair {
 
 use std::fmt;
 
-use yaserde_derive::{YaSerialize, YaDeserialize};
+use yaserde_derive::{YaDeserialize, YaSerialize};
 
 impl fmt::Display for CompleteMultipartUploadData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -148,9 +149,7 @@ pub struct BucketLocationResult {
 
 /// The parsed result of a s3 bucket listing
 #[derive(Debug, Clone, Default, YaDeserialize)]
-#[yaserde(
-    namespace = "http://s3.amazonaws.com/doc/2006-03-01/",
-)]
+#[yaserde(namespace = "http://s3.amazonaws.com/doc/2006-03-01/")]
 pub struct ListBucketResult {
     #[yaserde(rename = "Name", child)]
     /// Name of the bucket.

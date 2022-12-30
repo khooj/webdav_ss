@@ -1,9 +1,16 @@
+use percent_encoding::{percent_decode, utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use webdav_handler::davpath::DavPath;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NormalizedPath(String);
+
+const ENC: &AsciiSet = &NON_ALPHANUMERIC.remove(b'/').remove(b'.');
+
+pub fn normalize_path(s: &str) -> String {
+    utf8_percent_encode(s, ENC).to_string()
+}
 
 impl NormalizedPath {
     fn trim_token(mut token: &str) -> &str {
@@ -103,7 +110,7 @@ impl From<String> for NormalizedPath {
         if t.len() == 0 {
             t = String::from_str("/").unwrap();
         }
-        NormalizedPath(t)
+        NormalizedPath(normalize_path(&t))
     }
 }
 
@@ -124,7 +131,7 @@ impl From<&DavPath> for NormalizedPath {
             .unwrap()
             .to_owned();
         let t = if col { format!("{}/", t) } else { t };
-        NormalizedPath(t)
+        NormalizedPath(normalize_path(&t))
     }
 }
 

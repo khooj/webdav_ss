@@ -17,8 +17,17 @@ pub trait S3File: DavFile {
 }
 
 pub struct S3DirEntry {
-    pub metadata: Box<dyn DavMetaData>,
-    pub name: Vec<u8>,
+    metadata: Box<dyn DavMetaData>,
+    name: Vec<u8>,
+}
+
+impl S3DirEntry {
+    pub fn new(metadata: Box<dyn DavMetaData>, name: &str) -> Box<dyn DavDirEntry> {
+        return Box::new(S3DirEntry {
+            metadata,
+            name: name.as_bytes().to_owned(),
+        }) as Box<dyn DavDirEntry>;
+    }
 }
 
 impl DavDirEntry for S3DirEntry {

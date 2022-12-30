@@ -1,20 +1,21 @@
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
+use tracing::debug;
 use webdav_handler::fs::{DavMetaData, FsResult};
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug, Clone, Default)]
 pub struct S3MetaData {
-    pub path: String,
-    pub len: u64,
+    path: String,
+    len: u64,
     #[derivative(Default(value = "SystemTime::now()"))]
-    pub modified: SystemTime,
+    modified: SystemTime,
     #[derivative(Default(value = "SystemTime::now()"))]
-    pub created: SystemTime,
-    pub executable: bool,
-    pub is_dir: bool,
-    pub etag: Option<String>,
+    created: SystemTime,
+    executable: bool,
+    is_dir: bool,
+    etag: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -65,6 +66,18 @@ impl S3MetaData {
         let created = S3MetaData::as_unixtime(self.created);
         let result = vec![("modified".into(), modified), ("created".into(), created)];
         result
+    }
+
+    pub fn add_len(&mut self, s: u64) {
+        self.len += s;
+    }
+
+    pub fn modified_now(&mut self) {
+        self.modified = SystemTime::now();
+    }
+
+    pub fn len(&self) -> u64 {
+        self.len
     }
 }
 

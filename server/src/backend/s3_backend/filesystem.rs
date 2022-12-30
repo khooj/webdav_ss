@@ -225,18 +225,16 @@ impl S3Backend {
                     if let Err(_) = m {
                         continue;
                     }
-                    let p: NormalizedPath = d.prefix.clone().into();
-                    let p = p.strip_prefix(&path);
+                    // let p: NormalizedPath = d.prefix.clone().into();
+                    // let p = p.strip_prefix(&path);
+                    let p = d.prefix.clone().strip_prefix(&*path).expect("can't strip prefix in common_prefixes").to_string();
                     debug!(msg = "generating entry for dir", prefix = ?p);
-                    yield Box::new(S3DirEntry {
-                        metadata: m.unwrap(),
-                        name: p.into(),
-                    }) as Box<dyn DavDirEntry>;
+                    yield S3DirEntry::new(m.unwrap(), &p);
                 }
 
                 for c in e.contents {
                     let k = c.key.clone();
-                    let prefix: NormalizedPath = c.key.into();
+                    let prefix = c.key.clone();
                     if prefix.ends_with(".dir") {
                         continue;
                     }
@@ -247,11 +245,8 @@ impl S3Backend {
                         Some(c.e_tag),
                         Some(c.last_modified),
                     );
-                    let prefix = prefix.strip_prefix(&path);
-                    let mm = Box::new(S3DirEntry {
-                        metadata: Box::new(mm) as Box<dyn DavMetaData>,
-                        name: prefix.into(),
-                    }) as Box<dyn DavDirEntry>;
+                    let prefix2 = prefix.strip_prefix(&*path).or(Some(&prefix)).unwrap().to_string();
+                    let mm = S3DirEntry::new(Box::new(mm) as Box<dyn DavMetaData>, &prefix2);
                     yield mm;
                 }
             }

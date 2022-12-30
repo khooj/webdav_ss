@@ -157,7 +157,7 @@ impl Bucket {
     ) -> Result<CreateBucketResponse> {
         config.set_region(region.clone());
         let command = Command::CreateBucket { config };
-        let bucket = if path_style { 
+        let bucket = if path_style {
             Bucket::new_with_path_style(name, region, credentials)?
         } else {
             Bucket::new(name, region, credentials)?
@@ -1255,8 +1255,10 @@ impl Bucket {
         let path = format!("{}?uploads", key.as_ref());
         let request = Request::new(self, &path, command);
         let (data, code) = request.response_data_future(false).await?;
+        println!("{}", String::from_utf8_lossy(&data));
         let msg: InitiateMultipartUploadResponse =
-            serde_xml::from_str(std::str::from_utf8(data.as_slice())?)?;
+            yaserde::de::from_str(std::str::from_utf8(data.as_slice())?)
+                .map_err(|e| S3Error::from(e.as_str()))?;
         Ok((msg, code))
     }
 

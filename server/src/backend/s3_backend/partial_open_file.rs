@@ -108,11 +108,11 @@ impl PartialOpenFile {
             }
 
             self.etags.push(resp);
-            self.metadata.len += b.len() as u64;
+            self.metadata.add_len(b.len() as u64);
         }
 
         self.cursor = Cursor::new(vec![]);
-        self.metadata.modified = SystemTime::now();
+        self.metadata.modified_now();
         Ok(())
     }
 }
@@ -141,7 +141,7 @@ impl DavFile for PartialOpenFile {
 
     #[instrument(level = "debug", skip(self))]
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
-        debug!(path = %self.path, length = self.metadata.len);
+        debug!(path = %self.path, length = self.metadata.len());
 
         async move {
             self.upload_current().await?;

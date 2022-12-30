@@ -15,7 +15,7 @@
         overlays = [ rust-overlay.overlays.default ];
       };
       litmus = pkgs.callPackage ./litmus.nix {};
-      webdav_ss = (import ./Cargo.nix { inherit pkgs; }).rootCrate.build;
+      webdav_ss = (import ./Cargo.nix { inherit pkgs; }).workspaceMembers."webdav_ss".build;
       module = import ./module.nix webdav_ss;
 
       moduleTests = import

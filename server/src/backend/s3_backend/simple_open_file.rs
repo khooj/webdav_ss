@@ -47,8 +47,8 @@ impl DavFile for S3SimpleOpenFile {
         async move {
             let b = buf.chunk();
             self.cursor.write(b).await.unwrap();
-            self.metadata.modified = SystemTime::now();
-            self.metadata.len += b.len() as u64;
+            self.metadata.modified_now();
+            self.metadata.add_len(b.len() as u64);
             Ok(())
         }
         .boxed()
@@ -57,8 +57,8 @@ impl DavFile for S3SimpleOpenFile {
     fn write_bytes<'a>(&'a mut self, buf: bytes::Bytes) -> FsFuture<()> {
         async move {
             self.cursor.write(buf.chunk()).await.unwrap();
-            self.metadata.modified = SystemTime::now();
-            self.metadata.len += buf.len() as u64;
+            self.metadata.modified_now();
+            self.metadata.add_len(buf.len() as u64);
             Ok(())
         }
         .boxed()
@@ -81,7 +81,7 @@ impl DavFile for S3SimpleOpenFile {
     #[instrument(level = "debug", skip(self))]
     fn flush<'a>(&'a mut self) -> FsFuture<()> {
         let mut data = self.cursor.clone();
-        debug!(path = %self.path, length = self.metadata.len);
+        debug!(path = %self.path, length = self.metadata.len());
 
         async move {
             data.seek(SeekFrom::Start(0)).await.unwrap();
