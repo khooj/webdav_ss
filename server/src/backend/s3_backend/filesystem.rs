@@ -162,7 +162,8 @@ impl S3Backend {
         let mut is_col = false;
         let mut head: Option<(HeadObjectResult, NormalizedPath)> = None;
         // check if it dir or file
-        for prefix in [path.join_file(".dir"), path.clone()] {
+        for prefix in [path.join_file(".dir"), path.as_file(), path.clone()] {
+            debug!(prefix = %prefix, "check existence");
             let (resp, code) = self.client.head_object(prefix.clone()).await?;
             if code != 200 {
                 continue;

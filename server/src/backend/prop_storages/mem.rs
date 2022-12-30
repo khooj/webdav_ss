@@ -45,6 +45,7 @@ impl Memory {
     ) -> PropResult<(StatusCode, DavProp)> {
         let data = self.data.lock().unwrap();
         let k = Memory::get_prop_string(path, &prop);
+        debug!(prop_key = %k, "add prop with this key");
         let mut p_c = prop.clone();
         p_c.xml = None;
         if set {
@@ -101,7 +102,9 @@ impl PropStorage for Memory {
         let span = span!(Level::INFO, "Memory::get_prop");
         async move {
             let data = self.data.lock().unwrap();
+            debug!(path = %path);
             let k = Memory::get_prop_string(path, &prop);
+            debug!(prop_search_string = %k, "finding prop in map by this key");
             let r = data
                 .borrow()
                 .get(&k)
@@ -205,8 +208,8 @@ impl PropStorage for Memory {
             let mut rn = vec![];
             for k in b.keys() {
                 if k.starts_with(from.as_ref()) {
-                    let pp: NormalizedPath = k.strip_prefix(from.as_ref()).unwrap().into();
-                    let pp = format!("{}{}", to.as_ref(), pp.as_ref());
+                    let pp = k.strip_prefix(from.as_ref()).unwrap().to_string();
+                    let pp = format!("{}{}", to.as_ref(), pp);
                     rn.push((k.clone(), pp));
                 }
             }

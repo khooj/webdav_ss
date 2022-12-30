@@ -6,7 +6,17 @@ use webdav_handler::davpath::DavPath;
 #[derive(Debug, Clone, PartialEq)]
 pub struct NormalizedPath(String);
 
-const ENC: &AsciiSet = &NON_ALPHANUMERIC.remove(b'/').remove(b'.');
+const ENC: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'/')
+    .remove(b'.')
+    .remove(b'-')
+    .remove(b'%')
+    .remove(b'!')
+    .remove(b'_')
+    .remove(b'*')
+    .remove(b'\'')
+    .remove(b'(')
+    .remove(b')');
 
 pub fn normalize_path(s: &str) -> String {
     utf8_percent_encode(s, ENC).to_string()

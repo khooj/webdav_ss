@@ -374,14 +374,14 @@ impl DavFileSystem for Aggregate {
 
 pub struct AggregateBuilder {
     routes: Vec<(String, Box<dyn DavFileSystem>)>,
-    props: Box<dyn PropStorage>,
+    props: Option<Box<dyn PropStorage>>,
 }
 
 impl AggregateBuilder {
     pub fn new() -> Self {
         AggregateBuilder {
             routes: vec![],
-            props: Memory::new(),
+            props: None,
         }
     }
 
@@ -391,12 +391,15 @@ impl AggregateBuilder {
     }
 
     pub fn set_props_storage(mut self, props: Box<dyn PropStorage>) -> Self {
-        self.props = props;
+        self.props = Some(props);
         self
     }
 
     pub fn build(self) -> Result<Box<Aggregate>> {
-        let mut agg = Aggregate::new(self.props);
+        if self.props.is_none() {
+            panic!("can't build aggregate without props");
+        }
+        let mut agg = Aggregate::new(self.props.unwrap());
         for (route, fs) in self.routes {
             agg.add_route((&route, fs))?;
         }
