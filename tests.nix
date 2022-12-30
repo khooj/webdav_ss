@@ -6,7 +6,7 @@ in makeTest ({
   name = "check";
   nodes.machine1 = { ... }: {
     imports = [ module ];
-    environment.systemPackages = [ litmus ];
+    environment.systemPackages = [ litmus pkgs.cadaver ];
     virtualisation = {
       diskSize = 2048;
       memorySize = 1024;
@@ -16,7 +16,7 @@ in makeTest ({
       enable = true;
       host = "0.0.0.0";
       port = 5000;
-      logLevel = "info";
+      logLevel = "debug";
       compression = false;
       prop_storage = {
         type = "yaml";

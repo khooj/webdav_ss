@@ -33,6 +33,11 @@ impl Yaml {
             dump_mutex: Arc::new(Mutex::new(false)),
         };
 
+        if let Err(_) = std::fs::metadata(&m.filepath) {
+            std::fs::create_dir_all(m.filepath.parent().unwrap())
+                .expect("can't create dir for yaml");
+        }
+
         if std::fs::metadata(&m.filepath).is_ok() {
             m.load().expect("can't load yaml props");
         }
