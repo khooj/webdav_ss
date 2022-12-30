@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Mutex},
 };
 
@@ -13,7 +13,7 @@ use webdav_handler::fs::{DavProp, FsError};
 
 #[derive(Clone)]
 pub struct Memory {
-    data: Arc<Mutex<RefCell<HashMap<String, DavProp>>>>,
+    data: Arc<Mutex<RefCell<BTreeMap<String, DavProp>>>>,
 }
 
 impl Memory {
@@ -23,11 +23,11 @@ impl Memory {
 
     pub fn new_unboxed() -> Memory {
         Memory {
-            data: Arc::new(Mutex::new(RefCell::new(HashMap::new()))),
+            data: Arc::new(Mutex::new(RefCell::new(BTreeMap::new()))),
         }
     }
 
-    pub fn get_all_props(&self) -> HashMap<String, DavProp> {
+    pub fn get_all_props(&self) -> BTreeMap<String, DavProp> {
         let g = self.data.lock().unwrap();
         let b = g.borrow();
         b.clone()

@@ -1,10 +1,14 @@
+use super::{mem::Memory, PropStorage};
 use futures_util::FutureExt;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf};
+use std::io::Write;
+use std::sync::{Arc, Mutex};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+};
+use tracing::{debug, span, Instrument, Level};
 use webdav_handler::fs::DavProp;
-use tracing::{debug, instrument, span, Instrument, Level};
-
-use super::{mem::Memory, PropStorage};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct Prop {
@@ -18,6 +22,7 @@ struct Prop {
 pub struct Yaml {
     filepath: PathBuf,
     mem: Memory,
+    dump_mutex: Arc<Mutex<bool>>,
 }
 
 impl Yaml {
@@ -25,6 +30,7 @@ impl Yaml {
         let mut m = Yaml {
             filepath: fp,
             mem: Memory::new_unboxed(),
+            dump_mutex: Arc::new(Mutex::new(false)),
         };
 
         if std::fs::metadata(&m.filepath).is_ok() {
@@ -38,15 +44,15 @@ impl Yaml {
 
         let mut f = std::fs::OpenOptions::new();
         let f = f.read(true).open(&self.filepath)?;
-        let data: HashMap<String, Prop> =
+        let data: BTreeMap<String, Prop> =
             serde_yaml::from_reader(f).map_err(|e| Error::new(ErrorKind::Other, e))?;
 
         for (k, v) in &data {
-            let xml = v.value.clone()
-                .map(|v| 
-                    base64::decode(&v)
-                    .map(|k| Some(k)).unwrap_or(None)
-                ).unwrap_or(None);
+            let xml = v
+                .value
+                .clone()
+                .map(|v| base64::decode(&v).map(|k| Some(k)).unwrap_or(None))
+                .unwrap_or(None);
             let _ = self
                 .mem
                 .add_prop(
@@ -68,8 +74,9 @@ impl Yaml {
     }
 
     fn dump(&self) -> super::PropResult<()> {
+        let _l = self.dump_mutex.lock().expect("can't lock for dump");
         let data = self.mem.get_all_props();
-        let data: HashMap<_, _> = data
+        let data: BTreeMap<_, _> = data
             .into_iter()
             .map(|(k, v)| {
                 (
@@ -83,10 +90,14 @@ impl Yaml {
                 )
             })
             .collect();
+        debug!("dumping yaml");
         let mut opts = std::fs::OpenOptions::new();
         let f = opts.create(true).write(true).open(&self.filepath)?;
 
-        serde_yaml::to_writer(f, &data).map_err(|_| webdav_handler::fs::FsError::GeneralFailure)
+        let res = serde_yaml::to_writer(f, &data)
+            .map_err(|_| webdav_handler::fs::FsError::GeneralFailure);
+        debug!("yaml dumped");
+        res
     }
 }
 
