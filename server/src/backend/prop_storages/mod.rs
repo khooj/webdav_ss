@@ -1,5 +1,7 @@
 pub mod mem;
 pub mod yaml;
+pub mod kv;
+pub mod stub;
 
 use super::normalized_path::NormalizedPath;
 use hyper::StatusCode;

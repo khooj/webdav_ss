@@ -10,7 +10,7 @@ const ENC: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'/')
     .remove(b'.')
     .remove(b'-')
-    .remove(b'%')
+    // .remove(b'%')
     .remove(b'!')
     .remove(b'_')
     .remove(b'*')

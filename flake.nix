@@ -59,6 +59,7 @@
             nixos-shell
             vscodium
             s3cmd
+            cadaver
           ];
           nativeBuildInputs = with pkgs; [ rustc cargo pkgconfig nixpkgs-fmt ];
           shellHook = ''

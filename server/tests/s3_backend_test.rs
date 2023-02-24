@@ -76,9 +76,7 @@ async fn run_in_container(image: GenericImage, args: RunArgs, fs: FilesystemType
                 encryption: None,
             },
         ],
-        prop_storage: Some(PropsStorage::Yaml {
-            path: "/tmp/webdav_props.yml".into(),
-        }),
+        prop_storage: Some(PropsStorage::Mem),
     };
 
     if std::fs::metadata("/tmp/webdav_props.yml")

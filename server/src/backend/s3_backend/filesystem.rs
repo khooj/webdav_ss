@@ -228,7 +228,9 @@ impl S3Backend {
                     }
                     // let p: NormalizedPath = d.prefix.clone().into();
                     // let p = p.strip_prefix(&path);
-                    let p = d.prefix.clone().strip_prefix(&*path).expect("can't strip prefix in common_prefixes").to_string();
+                    debug!(prefix = %d.prefix, path = %path);
+                    let dd = d.prefix.clone();
+                    let p = dd.strip_prefix(&*path).unwrap_or(&d.prefix);
                     debug!(msg = "generating entry for dir", prefix = ?p);
                     yield S3DirEntry::new(m.unwrap(), &p);
                 }

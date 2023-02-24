@@ -19,8 +19,7 @@ in makeTest ({
       logLevel = "debug";
       compression = false;
       prop_storage = {
-        type = "yaml";
-        path = "/tmp/twodir/yaml_storage.yml";
+        type = "mem";
       };
 
       encryption = {

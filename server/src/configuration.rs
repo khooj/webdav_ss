@@ -114,8 +114,9 @@ pub struct Encryption {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum PropsStorage {
-    Yaml { path: String },
+    _Yaml { path: String },
     Mem,
+    _Stub,
 }
 
 #[derive(Debug, Deserialize)]

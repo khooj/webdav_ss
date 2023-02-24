@@ -1,7 +1,7 @@
 use crate::{
     backend::{
         encryption::EncryptionWrapper,
-        prop_storages::{mem::Memory, yaml::Yaml, PropStorage},
+        prop_storages::{kv::Kv, mem::Memory, stub::Stub, yaml::Yaml, PropStorage},
     },
     configuration::{Encryption, PropsStorage},
 };
@@ -35,8 +35,8 @@ async fn get_backend_by_type(fs: Filesystem) -> Box<dyn DavFileSystem> {
 
 fn get_props_storage_by_conf(p: PropsStorage) -> Box<dyn PropStorage> {
     match p {
-        PropsStorage::Yaml { path } => Yaml::new(PathBuf::from_str(&path).unwrap()),
         PropsStorage::Mem => Memory::new(),
+        _ => panic!("other props storages not supported"),
     }
 }
 
